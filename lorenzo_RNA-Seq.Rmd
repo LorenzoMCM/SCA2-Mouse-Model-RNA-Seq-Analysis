@@ -24,7 +24,6 @@ BiocManager::install(c('Glimma', 'DESeq2', 'AnnotationDbi', 'vsn', 'org.Mm.eg.db
 
 ```{r message=FALSE}
 library(readxl)
-library(dplyr)
 library(DESeq2)
 library(ggplot2)
 library(gplots)
@@ -35,6 +34,7 @@ library(regionReport)
 library(clusterProfiler)
 library(org.Mm.eg.db)
 library(AnnotationDbi)
+library(dplyr)
 ```
 
 ### Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with panther-db
@@ -59,19 +59,9 @@ mainPanther = as.data.frame(read_excel('Panther-RNA-ALL.xlsm', col_names = FALSE
 
 mainPanther = mainPanther[!is.na(mainPanther)]
 
-rbps = reads[reads$MGI %in% mainPanther,]
+#rbps = reads[reads$MGI %in% mainPanther,]
 
-#MGIrbps = as.character(rbps$Gene_ID)
-
-#rbps$Gene_ID = mapIds(org.Mm.eg.db,MGIrbps,keytype = "ENTREZID","ENSEMBL")
-
-#rbps = na.omit(rbps)
-
-#rbps <- rbps %>%
-#  add_count(Gene_ID) %>%        # Add a count of Gene_ID occurrences
-#  filter(n == 1) %>%            # Keep only rows where count is 1
-#  select(-n)                    # Remove the count column
-
+rbps = reads
 
 ```
 
@@ -546,7 +536,6 @@ plotPCA(rl3M_WT41, intgroup = c("l3M_WT41"))
 plotPCA(rl3F_3641, intgroup = c("l3F_3641"))
 plotPCA(rl3M_3641, intgroup = c("l3M_3641"))
 ```
-
 ```{r eval=FALSE, include=FALSE}
 plotPCA(rlF_WT, intgroup = c("tpF_WT"))
 plotPCA(rlM_WT, intgroup = c("tpM_WT"))
@@ -564,7 +553,7 @@ plotPCA(rlM_TG, intgroup = c("tpM_TG"))
 
 ## Reports on differentially expressed (Padj < 0.5) genes for easy visualization, commented to allow Knitting
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 # Commented to allow Markdown knitting, must uncomment and open output in browser for visualization
 
 #glimmaVolcano(x = dds1F_3641, counts = T1F_3641, groups = c1F_3641$l1F_3641)
@@ -668,7 +657,6 @@ reList = lapply(reList, function(res) {
   
   df = merge(df, reads[, c("MGI", "Gene_ID", "Gene_Symbol")], by = "MGI", all.x = TRUE)
   
-  # Remove rownames
   rownames(df) <- NULL
   
   return(df)
@@ -687,7 +675,9 @@ pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "
   # Sort the filtered rows by padj value
   sorted_x <- filtered_x[order(filtered_x$padj), ]
   
-  sorted_x <- head(sorted_x,max)
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
   
   return(sorted_x[[key]])
 }
@@ -700,20 +690,24 @@ ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = 
   # Sort the filtered rows by padj value
   sorted_x <- filtered_x[order(filtered_x$padj), ]
   
-  sorted_x <- head(sorted_x,max)
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
   
   return(sorted_x[[key]])
 }
 
-degenes = function(x, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
   
   # Filter rows based on adj
-  filtered_x <- x[(x$padj < padjThreshold) & !is.na(x$padj),]
+  filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
   
   # Sort the filtered rows by padj value
   sorted_x <- filtered_x[order(filtered_x$padj), ]
   
-  sorted_x <- head(sorted_x,max)
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
   
   return(sorted_x[[key]])
 }
@@ -724,11 +718,11 @@ degenes = function(x, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
 
 ```{r}
 
-genespAll = lapply(reList, pdegenes, padjThreshold = 0.1, max = 20)
+genespAll = lapply(reList, pdegenes, padjThreshold = 0.1, max = NULL)
 
-genesnAll = lapply(reList, ndegenes, padjThreshold = 0.1, max = 20)
+genesnAll = lapply(reList, ndegenes, padjThreshold = 0.1, max = NULL)
 
-genesAll = lapply(reList, degenes, padjThreshold = 0.1, max = 20)
+genesAll = lapply(reList, degenes, padjThreshold = 0.1, max = NULL)
 ```
 
 ### Outputting as csv for easy consulting
@@ -770,98 +764,108 @@ library(GOstats)
 ```
 
 ```{r}
-posfilter = function(x, lfcThreshold = 2, padjThreshold = 0.05){
-  
-  obj_name = deparse(substitute(x))
-  
-  new_obj_name = paste0("pos_", obj_name)
-  
-  df = as.data.frame(x)
-  
-#  df$MGI <- rownames(df)
-  
-#  df <- merge(df, reads[, c("MGI", "Gene_Symbol")], by = "MGI", all.x = TRUE)
-  
-  dfsub = subset(df, padj <= padjThreshold & log2FoldChange > lfcThreshold & !is.na(padj))
-  
-  rownames(dfsub) = NULL
 
-  assign(new_obj_name, dfsub, envir = .GlobalEnv)
+sigRes = lapply(reList, function(x) as.data.frame(subset(x, padj < 0.05)))
+
+go_PDE = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
+  
+  selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold])
+  
+  universe = unique(x$'Gene_ID')
+
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
+  
+  return(hyperGTest(Params))
+  
+}
+go_NDE = function(x, lfcThreshold = -2, cutOff = 0.01, ont = "BP"){
+  
+  selectGenes = unique(x$Gene_ID[x$log2FoldChange < lfcThreshold])
+  
+  universe = unique(x$'Gene_ID')
+
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
+  
+  return(hyperGTest(Params))
   
 }
 
-negfilter = function(x, lfcThreshold = -2, padjThreshold = 0.05){
+allgo = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
   
-  obj_name = deparse(substitute(x))
+  selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold|x$log2FolgChange < -lfcThreshold])
   
-  new_obj_name = paste0("neg_", obj_name)
+  universe <- unique(x$Gene_ID)
   
-  df = as.data.frame(x)
   
-  df$MGI <- rownames(df)
-  
-  df <- merge(df, reads[, c("MGI", "Gene_Symbol")], by = "MGI", all.x = TRUE)
-      
-  dfsub = subset(df, padj <= padjThreshold & log2FoldChange < lfcThreshold & !is.na(padj))
-  
-  rownames(dfsub) = NULL
-
-  assign(new_obj_name, dfsub, envir = .GlobalEnv)
-  
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
+    
+  return(hyperGTest(Params))
 }
+
+
 ```
 
 ```{r}
-#posList = lapply(reList, posfilter, lfcThreshold = 1, padjThreshold = 0.1)
+summary(allgo(sigRes$res1F_WTG))
 
-#posList$resM_36_31
-```
+GOBP_UP = lapply(sigRes, go_PDE)
 
-```{r}
+GOBP_UPsum = lapply(GOBP_UP, summary)
 
+output_dir = "path\to\file"
 
-#goDHelpMe = function(x){
-
-#          universeGenes = unique(x[["Gene_ID"]])
-#
-#          upParams = new("GOHyperGParams",
-#              geneIds = x[["Gene_ID"]],
-#              universeGeneIds = universeGenes,
-#              annotation = "org.Mm.eg.db",
-#              ontology = "BP",
-#              pvalueCutoff = 0.1,
-#              conditional = FALSE,
-#              testDirection = "over"
-#              )
-#          upBP = hyperGTest(upParams)
-#          
-#          return(upBP)
+#  file_name <- paste0(output_dir, "/", name, ".csv")
+#  write.csv(GOBP_UPsum[[name]], file_name, row.names = FALSE)
 #}
 
-#goDHelpMe(posList$res2F3641)
+#GOBP_DOWN = lapply(sigRes,go_NDE)
+#GOBP_DOWNsum = lapply(GOBP_DOWN, summary)
+
+#for (name in names(GOBP_DOWNsum)) {
+#  file_name <- paste0(output_dir, "/", name, ".csv")
+#  write.csv(GOBP_DOWNsum[[name]], file_name, row.names = FALSE)
+#}
+```
+
+
+
+```{r}
+GO_UPsum$res1M_WTG
 ```
 
 ```{r}
-#library(parallel)
-
-#numCores =  detectCores()
-#print(numCores)
-
-#cl = makeCluster(numCores)
-
-#clusterEvalQ(cl, {
-#  library(GOstats)
-#  library(org.Mm.eg.db)
-#})
-
-#clusterExport(cl, "goDHelpMe")
 
 ```
 
 ```{r}
-#what = parLapply(cl,posList,goDHelpMe)
+
 ```
 
 ```{r}
-#stopCluster(cl)
+
+```
+
+```{r}
+
 ```
