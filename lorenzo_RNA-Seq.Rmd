@@ -771,6 +771,11 @@ go_PDE = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
   
   selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold])
   
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
+  
   universe = unique(x$'Gene_ID')
 
   Params = new("GOHyperGParams",
@@ -788,6 +793,11 @@ go_PDE = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
 go_NDE = function(x, lfcThreshold = -2, cutOff = 0.01, ont = "BP"){
   
   selectGenes = unique(x$Gene_ID[x$log2FoldChange < lfcThreshold])
+  
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
   
   universe = unique(x$'Gene_ID')
 
@@ -808,8 +818,12 @@ allgo = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
   
   selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold])
   
-  universe <- unique(x$Gene_ID)
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
   
+  universe <- unique(x$Gene_ID)
   
   Params = new("GOHyperGParams",
                  geneIds = selectGenes,
@@ -826,7 +840,145 @@ allgo = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
 
 ```
 
-### Comparing WT and TG mice
+### Comparing WT and TG mice (positively and negatively DE genes and then all)
+
+```{r}
+BPGOP1F_WTG = (summary(go_PDE(sigRes$res1F_WTG)))
+BPGOP1M_WTG = (summary(go_PDE(sigRes$res1M_WTG)))
+BPGOM1F_WTG = (summary(go_NDE(sigRes$res1F_WTG)))
+BPGOM1M_WTG = (summary(go_NDE(sigRes$res1M_WTG)))
+
+BPGOP2F_WTG = (summary(go_PDE(sigRes$res2F_WTG)))
+BPGOP2M_WTG = (summary(go_PDE(sigRes$res2M_WTG)))
+BPGOM2F_WTG = (summary(go_NDE(sigRes$res2F_WTG)))
+BPGOM2M_WTG = (summary(go_NDE(sigRes$res2M_WTG)))
+
+BPGOP3F_WTG = (summary(go_PDE(sigRes$res3F_WTG)))
+BPGOP3M_WTG = (summary(go_PDE(sigRes$res3M_WTG)))
+BPGOM3F_WTG = (summary(go_NDE(sigRes$res3F_WTG)))
+BPGOM3M_WTG = (summary(go_NDE(sigRes$res3M_WTG)))
+
+
+BPGOP1F_WTG
+BPGOP1M_WTG
+```
+
+```{r}
+BPGOM1F_WTG
+BPGOM1M_WTG
+```
+
+```{r}
+BPGOP2F_WTG
+BPGOP2M_WTG
+```
+
+```{r}
+BPGOM2F_WTG
+BPGOM2M_WTG
+```
+
+```{r}
+BPGOP3F_WTG
+BPGOP3M_WTG
+```
+
+```{r}
+BPGOM3F_WTG
+BPGOM3M_WTG
+```
+
+```{r}
+CCGOP1F_WTG = summary(go_PDE(sigRes$res1F_WTG, ont = "CC"))
+CCGOP1M_WTG = summary(go_PDE(sigRes$res1M_WTG, ont = "CC"))
+CCGOM1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "CC"))
+CCGOM1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "CC"))
+
+CCGOP2F_WTG = summary(go_PDE(sigRes$res2F_WTG, ont = "CC"))
+CCGOP2M_WTG = summary(go_PDE(sigRes$res2M_WTG, ont = "CC"))
+CCGOM2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "CC"))
+CCGOM2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "CC"))
+
+CCGOP3F_WTG = summary(go_PDE(sigRes$res3F_WTG, ont = "CC"))
+CCGOP3M_WTG = summary(go_PDE(sigRes$res3M_WTG, ont = "CC"))
+CCGOM3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "CC"))
+CCGOM3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "CC"))
+
+CCGOP1F_WTG
+CCGOP1M_WTG
+```
+
+```{r}
+CCGOM1F_WTG
+CCGOM1M_WTG
+```
+
+
+```{r}
+CCGOP2F_WTG
+CCGOP2M_WTG
+```
+
+```{r}
+CCGOM2F_WTG
+CCGOM2M_WTG
+```
+
+```{r}
+CCGOP3F_WTG
+CCGOP3M_WTG
+```
+
+```{r}
+CCGOM3F_WTG
+CCGOM3M_WTG
+```
+
+```{r}
+MFGOP1F_WTG = summary(go_PDE(sigRes$res1F_WTG, ont = "MF"))
+MFGOP1M_WTG = summary(go_PDE(sigRes$res1M_WTG, ont = "MF"))
+MFGOM1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "MF"))
+MFGOM1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "MF"))
+
+MFGOP2F_WTG = summary(go_PDE(sigRes$res2F_WTG, ont = "MF"))
+MFGOP2M_WTG = summary(go_PDE(sigRes$res2M_WTG, ont = "MF"))
+MFGOM2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "MF"))
+MFGOM2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "MF"))
+
+MFGOP3F_WTG = summary(go_PDE(sigRes$res3F_WTG, ont = "MF"))
+MFGOP3M_WTG = summary(go_PDE(sigRes$res3M_WTG, ont = "MF"))
+MFGOM3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "MF"))
+MFGOM3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "MF"))
+
+MFGOP1F_WTG
+MFGOP1M_WTG
+```
+
+```{r}
+MFGOM1F_WTG
+MFGOM1M_WTG
+```
+
+
+```{r}
+MFGOP2F_WTG
+MFGOP2M_WTG
+```
+
+```{r}
+MFGOM2F_WTG
+MFGOM2M_WTG
+```
+
+```{r}
+MFGOP3F_WTG
+MFGOP3M_WTG
+```
+
+```{r}
+MFGOM3F_WTG
+MFGOM3M_WTG
+```
 
 ```{r}
 BPGO1F_WTG = (summary(allgo(sigRes$res1F_WTG)))
@@ -836,8 +988,6 @@ BPGO1M_WTG = (summary(allgo(sigRes$res1M_WTG)))
 BPGO1F_WTG
 BPGO1M_WTG
 ```
-
-
 
 ```{r}
 BPGO2F_WTG = (summary(allgo(sigRes$res2F_WTG)))
@@ -905,10 +1055,39 @@ MFGO3F_WTG
 MFGO3M_WTG
 ```
 
-
+### Comparing different TG lines
 
 ```{r}
-    
+BPGOP1F_3641 = summary(go_PDE(sigRes$res1F_3641))
+BPGOP1M_3641 = summary(go_PDE(sigRes$res1M_3641))
+BPGOM1F_3641 = summary(go_NDE(sigRes$res1F_3641))
+BPGOM1M_3641 = summary(go_NDE(sigRes$res1M_3641))
+
+BPGOP2F_3641 = summary(go_PDE(sigRes$res2F_3641))
+BPGOP2M_3641 = summary(go_PDE(sigRes$res2M_3641))
+BPGOM2F_3641 = summary(go_NDE(sigRes$res2F_3641))
+BPGOM2M_3641 = summary(go_NDE(sigRes$res2M_3641))
+
+BPGOP3F_3641 = summary(go_PDE(sigRes$res3F_3641))
+BPGOP3M_3641 = summary(go_PDE(sigRes$res3M_3641))
+BPGOM3F_3641 = summary(go_NDE(sigRes$res3F_3641))
+BPGOM3M_3641 = summary(go_NDE(sigRes$res3M_3641))
+
+BPGOP1F_3641
+BPGOP1M_3641
+```
+
+```{r}
+BPGOM1F_3641
+BPGOM1M_3641
+```
+
+```{r}
+BPGO1F_3641 = summary(allgo(sigRes$res1F_3641))
+BPGO1M_3641 = summary(allgo(sigRes$res1M3641))
+
+BPGO1F_3641
+BPGO1M_3641    
 ```
 
 ```{r}
