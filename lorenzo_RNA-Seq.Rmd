@@ -756,7 +756,7 @@ write.csv(dfAll, file = "gen_de_rbps.csv")
 
 ```
 
-## GO Analysis (W.I.P.)
+## GO Analysis
 
 ```{r message=FALSE}
 library(GO.db)
@@ -806,7 +806,7 @@ go_NDE = function(x, lfcThreshold = -2, cutOff = 0.01, ont = "BP"){
 
 allgo = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
   
-  selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold|x$log2FolgChange < -lfcThreshold])
+  selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold])
   
   universe <- unique(x$Gene_ID)
   
@@ -826,32 +826,89 @@ allgo = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
 
 ```
 
+### Comparing WT and TG mice
+
 ```{r}
-summary(allgo(sigRes$res1F_WTG))
+BPGO1F_WTG = (summary(allgo(sigRes$res1F_WTG)))
+BPGO1M_WTG = (summary(allgo(sigRes$res1M_WTG)))
 
-GOBP_UP = lapply(sigRes, go_PDE)
 
-GOBP_UPsum = lapply(GOBP_UP, summary)
-
-output_dir = "path\to\file"
-
-#  file_name <- paste0(output_dir, "/", name, ".csv")
-#  write.csv(GOBP_UPsum[[name]], file_name, row.names = FALSE)
-#}
-
-#GOBP_DOWN = lapply(sigRes,go_NDE)
-#GOBP_DOWNsum = lapply(GOBP_DOWN, summary)
-
-#for (name in names(GOBP_DOWNsum)) {
-#  file_name <- paste0(output_dir, "/", name, ".csv")
-#  write.csv(GOBP_DOWNsum[[name]], file_name, row.names = FALSE)
-#}
+BPGO1F_WTG
+BPGO1M_WTG
 ```
 
 
 
 ```{r}
-GO_UPsum$res1M_WTG
+BPGO2F_WTG = (summary(allgo(sigRes$res2F_WTG)))
+BPGO2M_WTG = (summary(allgo(sigRes$res2M_WTG)))
+
+BPGO2F_WTG
+BPGO2M_WTG
+```
+
+```{r}
+BPGO3F_WTG = (summary(allgo(sigRes$res3F_WTG)))
+BPGO3M_WTG = (summary(allgo(sigRes$res3M_WTG)))
+
+BPGO3F_WTG
+BPGO3M_WTG
+
+
+```
+
+```{r}
+CCGO1F_WTG = summary(allgo(sigRes$res1F_WTG, ont = "CC"))
+CCGO1M_WTG = summary(allgo(sigRes$res1M_WTG, ont = "CC"))
+
+CCGO1F_WTG
+CCGO1M_WTG
+```
+
+```{r}
+CCGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "CC"))
+CCGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "CC"))
+
+CCGO2F_WTG
+CCGO2M_WTG
+```
+
+```{r}
+CCGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "CC"))
+CCGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "CC"))
+
+CCGO3F_WTG
+CCGO3M_WTG
+```
+
+```{r}
+MFGO1F_WTG = summary(allgo(sigRes$res1F_WTG, ont = "MF"))
+MFGO1M_WTG = summary(allgo(sigRes$res1M_WTG, ont = "MF"))
+
+MFGO1F_WTG
+MFGO1M_WTG
+```
+
+```{r}
+MFGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "MF"))
+MFGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "MF"))
+
+MFGO2F_WTG
+MFGO2M_WTG
+```
+
+```{r}
+MFGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "MF"))
+MFGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "MF"))
+
+MFGO3F_WTG
+MFGO3M_WTG
+```
+
+
+
+```{r}
+    
 ```
 
 ```{r}
