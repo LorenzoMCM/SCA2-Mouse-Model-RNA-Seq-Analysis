@@ -40,8 +40,6 @@ library(dplyr)
 ### Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with panther-db
 
 ```{r message=FALSE, warning=FALSE}
-select = dplyr::select
-
 data = as.data.frame(read_excel("Reads_genes.xlsx"))
 
 reads = data %>% select(MGI, Gene_ID, Gene_Symbol, contains("Count"))
@@ -52,20 +50,22 @@ reads = na.omit(reads)
 
 ```
 
-### Importing panther-db list of RBPs and tidying it up (browsed for RNA Metabolism Proteins and filtered for Mus musculus, formatted into a csv, and edited in excel so the only row was MGI IDs, removed genes that did not have MGI IDs)
+### Importing panther-db list of RBPs and tidying it up (browsed for RNA Metabolism Proteins and filtered for Mus musculus, exported to and edited in excel so the only row was MGI IDs, removed genes that did not have MGI IDs)
 
 ```{r message=FALSE, warning=FALSE}
 mainPanther = as.data.frame(read_excel('Panther-RNA-ALL.xlsm', col_names = FALSE))
 
 mainPanther = mainPanther[!is.na(mainPanther)]
 
-#rbps = reads[reads$MGI %in% mainPanther,]
+#comment this for analyzing all genes (uncomment following line)
+rbps = reads[reads$MGI %in% mainPanther,]
 
-rbps = reads
+#comment this for analyzing only rbps (uncomment last line) 
+#rbps = reads
 
 ```
 
-### Naming conditions and final steps of set up
+### Naming conditions and final set up of rbps object
 
 ```{r message=FALSE, warning=FALSE}
 
@@ -556,11 +556,9 @@ plotPCA(rlM_TG, intgroup = c("tpM_TG"))
 ```{r eval=FALSE, include=FALSE}
 # Commented to allow Markdown knitting, must uncomment and open output in browser for visualization
 
-#glimmaVolcano(x = dds1F_3641, counts = T1F_3641, groups = c1F_3641$l1F_3641)
-#glimmaVolcano(x = dds3F_WT41, counts = T3F_WT41, groups = c3F_WT41$l3F_WT41)
+#limmaVolcano(x = dds3F_WTG, counts = T3F_WTG, groups = c3F_WTG$l3F_WTG)
 
-
-#DESeq2Report(dds = ddsf136, project = "All TPs M WT v TG", intgroup = c("lf1wt36"), output = "allTPS_M_WT_v_TG")
+#DESeq2Report(dds = dds3F_WTG, project = "T3 Female TG v WT", intgroup = c("l3F_WTG"), output = "T3_F_WTG")
 ```
 
 ## Preparing readable output
@@ -636,7 +634,6 @@ resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
 resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
 resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
 resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
-
 ```
 
 ### Converting results to dfs, removing MGI_IDs from rownames, adding MGI,
@@ -718,11 +715,11 @@ degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "G
 
 ```{r}
 
-genespAll = lapply(reList, pdegenes, padjThreshold = 0.1, max = NULL)
+genespAll = lapply(reList, pdegenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
 
-genesnAll = lapply(reList, ndegenes, padjThreshold = 0.1, max = NULL)
+genesnAll = lapply(reList, ndegenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
 
-genesAll = lapply(reList, degenes, padjThreshold = 0.1, max = NULL)
+genesAll = lapply(reList, degenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
 ```
 
 ### Outputting as csv for easy consulting
@@ -754,6 +751,8 @@ write.csv(dfpAll, file = "gen_de_pos_rbps.csv")
 write.csv(dfnAll, file = "gen_de_neg_rbps.csv")
 write.csv(dfAll, file = "gen_de_rbps.csv")
 
+#When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
+
 ```
 
 ## GO Analysis
@@ -767,7 +766,7 @@ library(GOstats)
 
 sigRes = lapply(reList, function(x) as.data.frame(subset(x, padj < 0.05)))
 
-go_PDE = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
+go_PDE = function(x, lfcThreshold = 2, cutOff = 0.05, ont = "BP"){
   
   selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold])
   
@@ -790,7 +789,7 @@ go_PDE = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
   return(hyperGTest(Params))
   
 }
-go_NDE = function(x, lfcThreshold = -2, cutOff = 0.01, ont = "BP"){
+go_NDE = function(x, lfcThreshold = -2, cutOff = 0.05, ont = "BP"){
   
   selectGenes = unique(x$Gene_ID[x$log2FoldChange < lfcThreshold])
   
@@ -814,7 +813,7 @@ go_NDE = function(x, lfcThreshold = -2, cutOff = 0.01, ont = "BP"){
   
 }
 
-allgo = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
+allgo = function(x, lfcThreshold = 2, cutOff = 0.05, ont = "BP"){
   
   selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold])
   
@@ -840,32 +839,33 @@ allgo = function(x, lfcThreshold = 2, cutOff = 0.01, ont = "BP"){
 
 ```
 
-### Comparing WT and TG mice (positively and negatively DE genes and then all)
+### Comparing WT and TG mice (positively and negatively DE genes and then all) (these take ~5 minutes to complete per chunk, depending on your CPU)
 
 ```{r}
 BPGOP1F_WTG = (summary(go_PDE(sigRes$res1F_WTG)))
 BPGOP1M_WTG = (summary(go_PDE(sigRes$res1M_WTG)))
-BPGOM1F_WTG = (summary(go_NDE(sigRes$res1F_WTG)))
-BPGOM1M_WTG = (summary(go_NDE(sigRes$res1M_WTG)))
+BPGON1F_WTG = (summary(go_NDE(sigRes$res1F_WTG)))
+BPGON1M_WTG = (summary(go_NDE(sigRes$res1M_WTG)))
 
 BPGOP2F_WTG = (summary(go_PDE(sigRes$res2F_WTG)))
 BPGOP2M_WTG = (summary(go_PDE(sigRes$res2M_WTG)))
-BPGOM2F_WTG = (summary(go_NDE(sigRes$res2F_WTG)))
-BPGOM2M_WTG = (summary(go_NDE(sigRes$res2M_WTG)))
+BPGON2F_WTG = (summary(go_NDE(sigRes$res2F_WTG)))
+BPGON2M_WTG = (summary(go_NDE(sigRes$res2M_WTG)))
 
 BPGOP3F_WTG = (summary(go_PDE(sigRes$res3F_WTG)))
 BPGOP3M_WTG = (summary(go_PDE(sigRes$res3M_WTG)))
-BPGOM3F_WTG = (summary(go_NDE(sigRes$res3F_WTG)))
-BPGOM3M_WTG = (summary(go_NDE(sigRes$res3M_WTG)))
-
+BPGON3F_WTG = (summary(go_NDE(sigRes$res3F_WTG)))
+BPGON3M_WTG = (summary(go_NDE(sigRes$res3M_WTG)))
+# P for POSITIVELY DGE
+# N for NEGATIVELY DGE
 
 BPGOP1F_WTG
 BPGOP1M_WTG
 ```
 
 ```{r}
-BPGOM1F_WTG
-BPGOM1M_WTG
+BPGON1F_WTG
+BPGON1M_WTG
 ```
 
 ```{r}
@@ -874,8 +874,8 @@ BPGOP2M_WTG
 ```
 
 ```{r}
-BPGOM2F_WTG
-BPGOM2M_WTG
+BPGON2F_WTG
+BPGON2M_WTG
 ```
 
 ```{r}
@@ -884,33 +884,33 @@ BPGOP3M_WTG
 ```
 
 ```{r}
-BPGOM3F_WTG
-BPGOM3M_WTG
+BPGON3F_WTG
+BPGON3M_WTG
 ```
 
 ```{r}
 CCGOP1F_WTG = summary(go_PDE(sigRes$res1F_WTG, ont = "CC"))
 CCGOP1M_WTG = summary(go_PDE(sigRes$res1M_WTG, ont = "CC"))
-CCGOM1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "CC"))
-CCGOM1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "CC"))
+CCGON1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "CC"))
+CCGON1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "CC"))
 
 CCGOP2F_WTG = summary(go_PDE(sigRes$res2F_WTG, ont = "CC"))
 CCGOP2M_WTG = summary(go_PDE(sigRes$res2M_WTG, ont = "CC"))
-CCGOM2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "CC"))
-CCGOM2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "CC"))
+CCGON2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "CC"))
+CCGON2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "CC"))
 
 CCGOP3F_WTG = summary(go_PDE(sigRes$res3F_WTG, ont = "CC"))
 CCGOP3M_WTG = summary(go_PDE(sigRes$res3M_WTG, ont = "CC"))
-CCGOM3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "CC"))
-CCGOM3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "CC"))
+CCGON3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "CC"))
+CCGON3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "CC"))
 
 CCGOP1F_WTG
 CCGOP1M_WTG
 ```
 
 ```{r}
-CCGOM1F_WTG
-CCGOM1M_WTG
+CCGON1F_WTG
+CCGON1M_WTG
 ```
 
 
@@ -920,8 +920,8 @@ CCGOP2M_WTG
 ```
 
 ```{r}
-CCGOM2F_WTG
-CCGOM2M_WTG
+CCGON2F_WTG
+CCGON2M_WTG
 ```
 
 ```{r}
@@ -930,33 +930,33 @@ CCGOP3M_WTG
 ```
 
 ```{r}
-CCGOM3F_WTG
-CCGOM3M_WTG
+CCGON3F_WTG
+CCGON3M_WTG
 ```
 
 ```{r}
 MFGOP1F_WTG = summary(go_PDE(sigRes$res1F_WTG, ont = "MF"))
 MFGOP1M_WTG = summary(go_PDE(sigRes$res1M_WTG, ont = "MF"))
-MFGOM1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "MF"))
-MFGOM1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "MF"))
+MFGON1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "MF"))
+MFGON1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "MF"))
 
 MFGOP2F_WTG = summary(go_PDE(sigRes$res2F_WTG, ont = "MF"))
 MFGOP2M_WTG = summary(go_PDE(sigRes$res2M_WTG, ont = "MF"))
-MFGOM2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "MF"))
-MFGOM2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "MF"))
+MFGON2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "MF"))
+MFGON2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "MF"))
 
 MFGOP3F_WTG = summary(go_PDE(sigRes$res3F_WTG, ont = "MF"))
 MFGOP3M_WTG = summary(go_PDE(sigRes$res3M_WTG, ont = "MF"))
-MFGOM3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "MF"))
-MFGOM3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "MF"))
+MFGON3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "MF"))
+MFGON3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "MF"))
 
 MFGOP1F_WTG
 MFGOP1M_WTG
 ```
 
 ```{r}
-MFGOM1F_WTG
-MFGOM1M_WTG
+MFGON1F_WTG
+MFGON1M_WTG
 ```
 
 
@@ -966,8 +966,8 @@ MFGOP2M_WTG
 ```
 
 ```{r}
-MFGOM2F_WTG
-MFGOM2M_WTG
+MFGON2F_WTG
+MFGON2M_WTG
 ```
 
 ```{r}
@@ -976,13 +976,17 @@ MFGOP3M_WTG
 ```
 
 ```{r}
-MFGOM3F_WTG
-MFGOM3M_WTG
+MFGON3F_WTG
+MFGON3M_WTG
 ```
 
 ```{r}
 BPGO1F_WTG = (summary(allgo(sigRes$res1F_WTG)))
 BPGO1M_WTG = (summary(allgo(sigRes$res1M_WTG)))
+BPGO2F_WTG = (summary(allgo(sigRes$res2F_WTG)))
+BPGO2M_WTG = (summary(allgo(sigRes$res2M_WTG)))
+BPGO3F_WTG = (summary(allgo(sigRes$res3F_WTG)))
+BPGO3M_WTG = (summary(allgo(sigRes$res3M_WTG)))
 
 
 BPGO1F_WTG
@@ -990,43 +994,36 @@ BPGO1M_WTG
 ```
 
 ```{r}
-BPGO2F_WTG = (summary(allgo(sigRes$res2F_WTG)))
-BPGO2M_WTG = (summary(allgo(sigRes$res2M_WTG)))
-
 BPGO2F_WTG
 BPGO2M_WTG
 ```
 
 ```{r}
-BPGO3F_WTG = (summary(allgo(sigRes$res3F_WTG)))
-BPGO3M_WTG = (summary(allgo(sigRes$res3M_WTG)))
-
 BPGO3F_WTG
 BPGO3M_WTG
-
-
 ```
 
 ```{r}
 CCGO1F_WTG = summary(allgo(sigRes$res1F_WTG, ont = "CC"))
 CCGO1M_WTG = summary(allgo(sigRes$res1M_WTG, ont = "CC"))
 
+CCGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "CC"))
+CCGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "CC"))
+
+CCGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "CC"))
+CCGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "CC"))
+
+
 CCGO1F_WTG
 CCGO1M_WTG
 ```
 
 ```{r}
-CCGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "CC"))
-CCGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "CC"))
-
 CCGO2F_WTG
 CCGO2M_WTG
 ```
 
 ```{r}
-CCGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "CC"))
-CCGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "CC"))
-
 CCGO3F_WTG
 CCGO3M_WTG
 ```
@@ -1035,59 +1032,359 @@ CCGO3M_WTG
 MFGO1F_WTG = summary(allgo(sigRes$res1F_WTG, ont = "MF"))
 MFGO1M_WTG = summary(allgo(sigRes$res1M_WTG, ont = "MF"))
 
+MFGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "MF"))
+MFGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "MF"))
+
+MFGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "MF"))
+MFGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "MF"))
+
 MFGO1F_WTG
 MFGO1M_WTG
 ```
 
 ```{r}
-MFGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "MF"))
-MFGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "MF"))
-
 MFGO2F_WTG
 MFGO2M_WTG
 ```
 
 ```{r}
-MFGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "MF"))
-MFGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "MF"))
-
 MFGO3F_WTG
 MFGO3M_WTG
 ```
+
+add comparisons 36vWT and 41vWT perhaps?
 
 ### Comparing different TG lines
 
 ```{r}
 BPGOP1F_3641 = summary(go_PDE(sigRes$res1F_3641))
 BPGOP1M_3641 = summary(go_PDE(sigRes$res1M_3641))
-BPGOM1F_3641 = summary(go_NDE(sigRes$res1F_3641))
-BPGOM1M_3641 = summary(go_NDE(sigRes$res1M_3641))
+BPGON1F_3641 = summary(go_NDE(sigRes$res1F_3641))
+BPGON1M_3641 = summary(go_NDE(sigRes$res1M_3641))
 
 BPGOP2F_3641 = summary(go_PDE(sigRes$res2F_3641))
 BPGOP2M_3641 = summary(go_PDE(sigRes$res2M_3641))
-BPGOM2F_3641 = summary(go_NDE(sigRes$res2F_3641))
-BPGOM2M_3641 = summary(go_NDE(sigRes$res2M_3641))
+BPGON2F_3641 = summary(go_NDE(sigRes$res2F_3641))
+BPGON2M_3641 = summary(go_NDE(sigRes$res2M_3641))
 
 BPGOP3F_3641 = summary(go_PDE(sigRes$res3F_3641))
 BPGOP3M_3641 = summary(go_PDE(sigRes$res3M_3641))
-BPGOM3F_3641 = summary(go_NDE(sigRes$res3F_3641))
-BPGOM3M_3641 = summary(go_NDE(sigRes$res3M_3641))
+BPGON3F_3641 = summary(go_NDE(sigRes$res3F_3641))
+BPGON3M_3641 = summary(go_NDE(sigRes$res3M_3641))
 
 BPGOP1F_3641
 BPGOP1M_3641
 ```
 
 ```{r}
-BPGOM1F_3641
-BPGOM1M_3641
+BPGON1F_3641
+BPGON1M_3641
 ```
 
 ```{r}
-BPGO1F_3641 = summary(allgo(sigRes$res1F_3641))
-BPGO1M_3641 = summary(allgo(sigRes$res1M3641))
+BPGOP2F_3641
+BPGOP2M_3641
+```
+
+```{r}
+BPGON2F_3641
+BPGON2M_3641
+```
+
+```{r}
+BPGOP3F_3641
+BPGOP3M_3641
+```
+
+```{r}
+BPGON3F_3641
+BPGON3M_3641
+```
+
+```{r}
+CCGOP1F_3641 = summary(go_PDE(sigRes$res1F_3641, ont = "CC"))
+CCGOP1M_3641 = summary(go_PDE(sigRes$res1M_3641, ont = "CC"))
+CCGON1F_3641 = summary(go_NDE(sigRes$res1F_3641, ont = "CC"))
+CCGON1M_3641 = summary(go_NDE(sigRes$res1M_3641, ont = "CC"))
+
+CCGOP2F_3641 = summary(go_PDE(sigRes$res2F_3641, ont = "CC"))
+CCGOP2M_3641 = summary(go_PDE(sigRes$res2M_3641, ont = "CC"))
+CCGON2F_3641 = summary(go_NDE(sigRes$res2F_3641, ont = "CC"))
+CCGON2M_3641 = summary(go_NDE(sigRes$res2M_3641, ont = "CC"))
+
+CCGOP3F_3641 = summary(go_PDE(sigRes$res3F_3641, ont = "CC"))
+CCGOP3M_3641 = summary(go_PDE(sigRes$res3M_3641, ont = "CC"))
+CCGON3F_3641 = summary(go_NDE(sigRes$res3F_3641, ont = "CC"))
+CCGON3M_3641 = summary(go_NDE(sigRes$res3M_3641, ont = "CC"))
+
+CCGOP1F_3641
+CCGOP1M_3641
+```
+
+```{r}
+CCGON1F_3641
+CCGON1M_3641
+```
+
+```{r}
+CCGOP2F_3641
+CCGOP2M_3641
+```
+
+```{r}
+CCGON2F_3641
+CCGON2M_3641
+```
+
+```{r}
+CCGOP3F_3641
+CCGOP3M_3641
+```
+
+```{r}
+CCGON3F_3641
+CCGON3M_3641
+```
+
+```{r}
+MFGOP1F_3641 = summary(go_PDE(sigRes$res1F_3641, ont = "MF"))
+MFGOP1M_3641 = summary(go_PDE(sigRes$res1M_3641, ont = "MF"))
+MFGON1F_3641 = summary(go_NDE(sigRes$res1F_3641, ont = "MF"))
+MFGON1M_3641 = summary(go_NDE(sigRes$res1M_3641, ont = "MF"))
+
+MFGOP2F_3641 = summary(go_PDE(sigRes$res2F_3641, ont = "MF"))
+MFGOP2M_3641 = summary(go_PDE(sigRes$res2M_3641, ont = "MF"))
+MFGON2F_3641 = summary(go_NDE(sigRes$res2F_3641, ont = "MF"))
+MFGON2M_3641 = summary(go_NDE(sigRes$res2M_3641, ont = "MF"))
+
+MFGOP3F_3641 = summary(go_PDE(sigRes$res3F_3641, ont = "MF"))
+MFGOP3M_3641 = summary(go_PDE(sigRes$res3M_3641, ont = "MF"))
+MFGON3F_3641 = summary(go_NDE(sigRes$res3F_3641, ont = "MF"))
+MFGON3M_3641 = summary(go_NDE(sigRes$res3M_3641, ont = "MF"))
+
+MFGOP1F_3641
+MFGOP1M_3641
+```
+
+```{r}
+MFGON1F_3641
+MFGON1M_3641
+```
+
+```{r}
+MFGOP2F_3641
+MFGOP2M_3641
+```
+
+```{r}
+MFGON2F_3641
+MFGON2M_3641
+```
+
+```{r}
+MFGOP3F_3641
+MFGOP3M_3641
+```
+
+```{r}
+MFGON3F_3641
+MFGON3M_3641
+```
+
+```{r}
+BPGO1F_3641 = (summary(allgo(sigRes$res1F_3641)))
+BPGO1M_3641 = (summary(allgo(sigRes$res1M_3641)))
+BPGO2F_3641 = (summary(allgo(sigRes$res2F_3641)))
+BPGO2M_3641 = (summary(allgo(sigRes$res2M_3641)))
+BPGO3F_3641 = (summary(allgo(sigRes$res3F_3641)))
+BPGO3M_3641 = (summary(allgo(sigRes$res3M_3641)))
 
 BPGO1F_3641
-BPGO1M_3641    
+BPGO1M_3641
+```
+
+```{r}
+BPGO2F_3641
+BPGO2M_3641
+```
+
+```{r}
+BPGO3F_3641
+BPGO3M_3641
+```
+
+```{r}
+CCGO1F_3641 = (summary(allgo(sigRes$res1F_3641, ont = "CC")))
+CCGO1M_3641 = (summary(allgo(sigRes$res1M_3641, ont = "CC")))
+CCGO2F_3641 = (summary(allgo(sigRes$res2F_3641, ont = "CC")))
+CCGO2M_3641 = (summary(allgo(sigRes$res2M_3641, ont = "CC")))
+CCGO3F_3641 = (summary(allgo(sigRes$res3F_3641, ont = "CC")))
+CCGO3M_3641 = (summary(allgo(sigRes$res3M_3641, ont = "CC")))
+
+CCGO1F_3641
+CCGO1M_3641
+```
+
+```{r}
+CCGO2F_3641
+CCGO2M_3641
+```
+
+```{r}
+CCGO3F_3641
+CCGO3M_3641
+```
+
+```{r}
+MFGO1F_3641 = (summary(allgo(sigRes$res1F_3641, ont = "MF")))
+MFGO1M_3641 = (summary(allgo(sigRes$res1M_3641, ont = "MF")))
+
+MFGO2F_3641 = (summary(allgo(sigRes$res2F_3641, ont = "MF")))
+MFGO2M_3641 = (summary(allgo(sigRes$res2M_3641, ont = "MF")))
+
+MFGO3F_3641 = (summary(allgo(sigRes$res3F_3641, ont = "MF")))
+MFGO3M_3641 = (summary(allgo(sigRes$res3M_3641, ont = "MF")))
+
+MFGO1F_3641
+MFGO1M_3641
+```
+
+```{r}
+MFGO2F_3641
+MFGO2M_3641
+```
+
+```{r}
+MFGO3F_3641
+MFGO3M_3641
+```
+
+### Timepoint Comparisons
+
+```{r}
+BPGOPF_36_21 = (summary(go_PDE(sigRes$resF_36_21)))
+BPGOPM_36_21 = (summary(go_PDE(sigRes$resM_36_21)))
+BPGOMF_36_21 = (summary(go_NDE(sigRes$resF_36_21)))
+BPGOMM_36_21 = (summary(go_NDE(sigRes$resM_36_21)))
+
+BPGOPF_36_31 = (summary(go_PDE(sigRes$resF_36_31)))
+BPGOPM_36_31 = (summary(go_PDE(sigRes$resM_36_31)))
+BPGOMF_36_31 = (summary(go_NDE(sigRes$resF_36_31)))
+BPGOMM_36_31 = (summary(go_NDE(sigRes$resM_36_31)))
+
+BPGOPF_36_32 = (summary(go_PDE(sigRes$resF_36_32)))
+BPGOPM_36_32 = (summary(go_PDE(sigRes$resM_36_32)))
+BPGOMF_36_32 = (summary(go_NDE(sigRes$resF_36_32)))
+BPGOMM_36_32 = (summary(go_NDE(sigRes$resM_36_32)))
+
+BPGOPF_36_21
+BPGOPM_36_21
+```
+
+```{r}
+BPGOMF_36_21
+BPGOMM_36_21
+```
+
+```{r}
+BPGOPF_36_31
+BPGOPM_36_31
+```
+
+```{r}
+BPGOMF_36_31
+BPGOMM_36_31
+```
+
+```{r}
+BPGOPF_36_32
+BPGOPM_36_32
+```
+
+```{r}
+BPGOMF_36_32
+BPGOMM_36_32
+```
+
+```{r}
+BPGOPF_41_21 = (summary(go_PDE(sigRes$resF_41_21)))
+BPGOPM_41_21 = (summary(go_PDE(sigRes$resM_41_21)))
+BPGOMF_41_21 = (summary(go_NDE(sigRes$resF_41_21)))
+BPGOMM_41_21 = (summary(go_NDE(sigRes$resM_41_21)))
+
+BPGOPF_41_31 = (summary(go_PDE(sigRes$resF_41_31)))
+BPGOPM_41_31 = (summary(go_PDE(sigRes$resM_41_31)))
+BPGOMF_41_31 = (summary(go_NDE(sigRes$resF_41_31)))
+BPGOMM_41_31 = (summary(go_NDE(sigRes$resM_41_31)))
+
+BPGOPF_41_32 = (summary(go_PDE(sigRes$resF_41_32)))
+BPGOPM_41_32 = (summary(go_PDE(sigRes$resM_41_32)))
+BPGOMF_41_32 = (summary(go_NDE(sigRes$resF_41_32)))
+BPGOMM_41_32 = (summary(go_NDE(sigRes$resM_41_32)))
+
+BPGOPF_41_21
+BPGOPM_41_21
+```
+
+```{r}
+BPGOMF_41_21
+BPGOMM_41_21
+```
+
+```{r}
+BPGOPF_41_31
+BPGOPM_41_31
+```
+
+```{r}
+BPGOMF_41_31
+BPGOMM_41_31
+```
+
+```{r}
+BPGOPF_41_32
+BPGOPM_41_32
+```
+
+```{r}
+BPGOMF_41_32
+BPGOMM_41_32
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
 ```
 
 ```{r}
