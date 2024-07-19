@@ -382,7 +382,7 @@ ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
 ```
 
-```{r eval=FALSE, include=FALSE}
+```{r}
 
 ## Filtering for genes read less than 5 times across all samples (Only for histogram visualizations)
 
@@ -436,7 +436,8 @@ ddsF_41 = ddsF_41[rowSums(counts(ddsF_41)) > 5,]
 ddsM_41 = ddsM_41[rowSums(counts(ddsM_41)) > 5,]
 
 ```
-```{r eval=FALSE, include=FALSE}
+
+```{r}
 
 ## log 2 transform (for visualizations)
 
@@ -489,7 +490,8 @@ rlF_41 = rlog(ddsF_41)
 rlM_41 = rlog(ddsM_41)
 
 ```
-```{r eval=FALSE, include=FALSE}
+
+```{r}
 plotPCA(rl1F_WTG, intgroup= c("l1F_WTG"))
 plotPCA(rl1M_WTG, intgroup= c("l1M_WTG"))
 
@@ -502,7 +504,8 @@ plotPCA(rl1M_WT41, intgroup = c("l1M_WT41"))
 plotPCA(rl1F_3641, intgroup = c("l1F_3641"))
 plotPCA(rl1M_3641, intgroup = c("l1M_3641"))
 ```
-```{r eval=FALSE, include=FALSE}
+
+```{r}
 plotPCA(rl2F_WTG, intgroup= c("l2F_WTG"))
 plotPCA(rl2M_WTG, intgroup= c("l2M_WTG"))
 
@@ -515,7 +518,8 @@ plotPCA(rl2M_WT41, intgroup = c("l2M_WT41"))
 plotPCA(rl2F_3641, intgroup = c("l2F_3641"))
 plotPCA(rl2M_3641, intgroup = c("l2M_3641"))
 ```
-```{r eval=FALSE, include=FALSE}
+
+```{r}
 plotPCA(rl3F_WTG, intgroup= c("l3F_WTG"))
 plotPCA(rl3M_WTG, intgroup= c("l3M_WTG"))
 
@@ -528,7 +532,8 @@ plotPCA(rl3M_WT41, intgroup = c("l3M_WT41"))
 plotPCA(rl3F_3641, intgroup = c("l3F_3641"))
 plotPCA(rl3M_3641, intgroup = c("l3M_3641"))
 ```
-```{r eval=FALSE, include=FALSE}
+
+```{r}
 plotPCA(rlF_WT, intgroup = c("tpF_WT"))
 plotPCA(rlM_WT, intgroup = c("tpM_WT"))
 
