@@ -1227,6 +1227,7 @@ BPGOMM_41_32
 library(pathview)
 library(gage)
 library(gageData)
+library(limma)
 
 data("go.sets.mm")
 data("go.subs.mm")
@@ -1239,37 +1240,32 @@ gomfsets = go.sets.mm[go.subs.mm$MF]
 
 kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
 
+KEGGpathNames = getKEGGPathwayNames(species.KEGG = "mmu")
+
 ```
 
 ```{r}
 
 goPathAnal = function(x, y = gobpsets){
   
+  # Extract and name fold changes
   foldchanges = x$log2FoldChange
   names(foldchanges) = x$Gene_ID
   
+  # GO Pathway analysis
   gobpres = gage(exprs = foldchanges, gsets = y, same.dir = TRUE)
   
   return(gobpres)
 } 
 
 keggPathAnalup = function(x) {
-  # Check that the input data has the necessary columns
-  if(!all(c("log2FoldChange", "Gene_ID") %in% colnames(x))) {
-    stop("Input data frame must contain 'log2FoldChange' and 'Gene_ID' columns.")
-  }
-  
+
   # Extract and name fold changes
   foldchanges = x$log2FoldChange
   names(foldchanges) = x$Gene_ID
   
-  # Perform KEGG pathway analysis
+  # KEGG pathway analysis
   keggres = gage(exprs = foldchanges, gsets = kegg.sets.mm, same.dir = TRUE)
-  
-  # Check if there are any significant pathways
-  if(nrow(keggres$greater) == 0) {
-    stop("No significant pathways found.")
-  }
   
   # Select top 20 pathways
   pathways = data.frame(id = rownames(keggres$greater), keggres$greater) %>%
@@ -1278,6 +1274,7 @@ keggPathAnalup = function(x) {
     .$id %>% 
     as.character()
   
+  # ID variables with only first 8 characters
   keggIDs = substr(pathways, start = 1, stop = 8)
   
   # Create new directory with the name of the input object `x`
@@ -1289,23 +1286,26 @@ keggPathAnalup = function(x) {
   # Run pathview and specify output directory
   sapply(keggIDs, function(pid) {
     tryCatch({
-      pathview(gene.data = foldchanges, pathway.id = pid, species = "mmu", out.suffix = output_dir, kegg.dir = output_dir)
+      pathview(gene.data = foldchanges, pathway.id = pid, species = "mmu", kegg.dir = "./KEGG_Pathways")
     }, error = function(e) {
       message("Error processing pathway ID: ", pid)
       message("Error message: ", e$message)
     })
   })
   
-   files_to_move <- list.files(pattern = paste0(output_dir, ".*"))
-   file.rename(files_to_move, file.path(output_dir, files_to_move))
+  # Return a df with the names of top 20 pathways, for easy Rmd visualization
+  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
+  
+  return(matching_pathways)
+  
+  # Files still get output straight to the WD somehow. Have to manually move output files to generated folder.
 }
 
-  
 
 ```
 
-```{r}
-
+```{r message=FALSE, warning=FALSE}
+keggPathAnalup(reList$res1M_WTG)
 ```
 
 ```{r}
