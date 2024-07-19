@@ -40,6 +40,9 @@ library(dplyr)
 ## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with panther-db
 
 ```{r message=FALSE, warning=FALSE}
+
+setwd("your/file/path")
+
 data = as.data.frame(read_excel("Reads_genes.xlsx"))
 
 reads = data %>% select(MGI, Gene_ID, Gene_Symbol, contains("Count"))
@@ -1218,7 +1221,7 @@ BPGOMF_41_32
 BPGOMM_41_32
 ```
 
-# KEGG & GO Pathway Enrichment 
+# KEGG & GO Pathway Analysis
 
 ```{r}
 library(pathview)
@@ -1250,16 +1253,54 @@ goPathAnal = function(x, y = gobpsets){
   return(gobpres)
 } 
 
-keggPathAnal = function(x){
+keggPathAnalup = function(x) {
+  # Check that the input data has the necessary columns
+  if(!all(c("log2FoldChange", "Gene_ID") %in% colnames(x))) {
+    stop("Input data frame must contain 'log2FoldChange' and 'Gene_ID' columns.")
+  }
   
+  # Extract and name fold changes
   foldchanges = x$log2FoldChange
   names(foldchanges) = x$Gene_ID
   
+  # Perform KEGG pathway analysis
   keggres = gage(exprs = foldchanges, gsets = kegg.sets.mm, same.dir = TRUE)
   
-  return(keggres)
+  # Check if there are any significant pathways
+  if(nrow(keggres$greater) == 0) {
+    stop("No significant pathways found.")
+  }
+  
+  # Select top 20 pathways
+  pathways = data.frame(id = rownames(keggres$greater), keggres$greater) %>%
+    as_tibble() %>%
+    filter(row_number() <= 20) %>%
+    .$id %>% 
+    as.character()
+  
+  keggIDs = substr(pathways, start = 1, stop = 8)
+  
+  # Create new directory with the name of the input object `x`
+  output_dir = as.character(deparse(substitute(x)))
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir)
+  }
+  
+  # Run pathview and specify output directory
+  sapply(keggIDs, function(pid) {
+    tryCatch({
+      pathview(gene.data = foldchanges, pathway.id = pid, species = "mmu", out.suffix = output_dir, kegg.dir = output_dir)
+    }, error = function(e) {
+      message("Error processing pathway ID: ", pid)
+      message("Error message: ", e$message)
+    })
+  })
+  
+   files_to_move <- list.files(pattern = paste0(output_dir, ".*"))
+   file.rename(files_to_move, file.path(output_dir, files_to_move))
 }
 
+  
 
 ```
 
