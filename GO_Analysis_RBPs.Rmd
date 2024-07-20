@@ -1,7 +1,7 @@
 ---
-title: "RNA_setup"
+title: "GO_Analysis_RBPs"
 author: "Lorenzo.MCM"
-date: "2024-06-04"
+date: "2024-07-20"
 output: html_document
 ---
 
@@ -40,8 +40,6 @@ library(dplyr)
 ## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with panther-db
 
 ```{r message=FALSE, warning=FALSE}
-
-setwd("your/file/path")
 
 data = as.data.frame(read_excel("Reads_genes.xlsx"))
 
@@ -393,18 +391,6 @@ ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
 ```
 
-# Reports on differentially expressed (Padj < 0.5) genes for easy visualization, commented to allow Knitting
-
-```{r eval=FALSE, include=FALSE}
-# Commented to allow Markdown knitting, must uncomment and open output in browser for visualization
-
-#limmaVolcano(x = dds3F_WTG, counts = T3F_WTG, groups = c3F_WTG$l3F_WTG)
-
-#DESeq2Report(dds = dds3F_WTG, project = "T3 Female TG v WT", intgroup = c("l3F_WTG"), output = "T3_F_WTG")
-```
-
-# Preparing readable output
-
 ## Converting to result objects
 
 ```{r}
@@ -502,236 +488,626 @@ reList = lapply(reList, function(res) {
 })
 ```
 
-## Function for selecting genes according to LFC, padj and key
+# GO Analysis
+
+```{r message=FALSE}
+library(GO.db)
+library(GOstats)
+```
 
 ```{r}
+#Subsetting only genes with a padj below 0.05 from results
+sigRes = lapply(reList, function(x) as.data.frame(subset(x, padj < 0.05)))
 
-pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+#Functions for GO analysis
+go_PDE = function(x, lfcThreshold = 2, cutOff = 0.05, ont = "BP"){
   
-  # Filter rows based on log2FoldChange and padj
-  filtered_x <- x[(x$log2FoldChange > lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
+  selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold])
   
-  # Sort the filtered rows by padj value
-  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
   
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
+  universe = unique(x$'Gene_ID')
+
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
   
-  return(sorted_x[[key]])
+  return(hyperGTest(Params))
+  
+}
+go_NDE = function(x, lfcThreshold = -2, cutOff = 0.05, ont = "BP"){
+  
+  selectGenes = unique(x$Gene_ID[x$log2FoldChange < lfcThreshold])
+  
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
+  
+  universe = unique(x$'Gene_ID')
+
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
+  
+  return(hyperGTest(Params))
+  
 }
 
-ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
-
-    # Filter rows based on log2FoldChange and padj
-  filtered_x <- x[(x$log2FoldChange < lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
+allgo = function(x, lfcThreshold = 2, cutOff = 0.05, ont = "BP"){
   
-  # Sort the filtered rows by padj value
-  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  selectGenes = unique(x$Gene_ID[x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold])
   
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
   
-  return(sorted_x[[key]])
+  universe <- unique(x$Gene_ID)
+  
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
+    
+  return(hyperGTest(Params))
 }
 
-degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
-  
-  # Filter rows based on adj
-  filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
-  
-  # Sort the filtered rows by padj value
-  sorted_x <- filtered_x[order(filtered_x$padj), ]
-  
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
-  
-  return(sorted_x[[key]])
-}
 
 ```
 
-## Applying to all results
+## Comparing WT and TG mice (positively and negatively DE genes and then all) (these take ~5 minutes to complete per chunk, depending on your CPU)
 
+### BP Analysis
 ```{r}
+BPGOP1F_WTG = (summary(go_PDE(sigRes$res1F_WTG)))
+BPGOP1M_WTG = (summary(go_PDE(sigRes$res1M_WTG)))
+BPGON1F_WTG = (summary(go_NDE(sigRes$res1F_WTG)))
+BPGON1M_WTG = (summary(go_NDE(sigRes$res1M_WTG)))
 
-genespAll = lapply(reList, pdegenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
+BPGOP2F_WTG = (summary(go_PDE(sigRes$res2F_WTG)))
+BPGOP2M_WTG = (summary(go_PDE(sigRes$res2M_WTG)))
+BPGON2F_WTG = (summary(go_NDE(sigRes$res2F_WTG)))
+BPGON2M_WTG = (summary(go_NDE(sigRes$res2M_WTG)))
 
-genesnAll = lapply(reList, ndegenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
+BPGOP3F_WTG = (summary(go_PDE(sigRes$res3F_WTG)))
+BPGOP3M_WTG = (summary(go_PDE(sigRes$res3M_WTG)))
+BPGON3F_WTG = (summary(go_NDE(sigRes$res3F_WTG)))
+BPGON3M_WTG = (summary(go_NDE(sigRes$res3M_WTG)))
+# P for POSITIVELY DGE
+# N for NEGATIVELY DGE
 
-genesAll = lapply(reList, degenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
-```
-
-## Outputting as csv for easy consulting
-
-```{r message=FALSE, warning=FALSE}
-#binding vectors into dfs
-dfpAll = as.data.frame(do.call(rbind, genespAll))
-dfnAll = as.data.frame(do.call(rbind, genesnAll))
-dfAll = as.data.frame(do.call(rbind, genesAll))
-
-
-#function for replacing repeated genes for NAs
-replace_repeats_with_na <- function(x) {
-  duplicated_elements <- duplicated(x)
-  x[duplicated_elements] <- NA
-  return(x)
-}
-
-#Applying NA function and transposing output so conditions are columns 
-dfpAll = as.data.frame(t(apply(dfpAll, 1, replace_repeats_with_na)))
-dfnAll = as.data.frame(t(apply(dfnAll, 1, replace_repeats_with_na)))
-dfAll = as.data.frame(t(apply(dfAll, 1, replace_repeats_with_na)))
-
-dfpAll = as.data.frame(t(dfpAll))
-dfnAll = as.data.frame(t(dfnAll))
-dfAll = as.data.frame(t(dfAll)) 
-
-write.csv(dfpAll, file = "gen_de_pos_rbps.csv")
-write.csv(dfnAll, file = "gen_de_neg_rbps.csv")
-write.csv(dfAll, file = "gen_de_rbps.csv")
-
-#When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
-
-```
-
-# KEGG & GO Pathway Analysis
-
-```{r message=FALSE, warning=FALSE}
-library(pathview)
-library(gage)
-library(gageData)
-library(limma)
-
-data("go.sets.mm")
-data("go.subs.mm")
-data("kegg.sets.mm")
-data("sigmet.idx.mm")
-
-gobpsets = go.sets.mm[go.subs.mm$BP] 
-goccsets = go.sets.mm[go.subs.mm$CC]
-gomfsets = go.sets.mm[go.subs.mm$MF]
-
-kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
-
-KEGGpathNames = getKEGGPathwayNames(species.KEGG = "mmu")
-
+BPGOP1F_WTG
+BPGOP1M_WTG
 ```
 
 ```{r}
-
-goPathAnal = function(x, y = gobpsets){
-  
-  # Extract and name fold changes
-  foldchanges = x$log2FoldChange
-  names(foldchanges) = x$Gene_ID
-  
-  # GO Pathway analysis
-  gobpres = gage(exprs = foldchanges, gsets = y, same.dir = TRUE)
-  
-  return(gobpres)
-} 
-
-keggPathAnal = function(x, output = FALSE) {
-
-  # Extract and name fold changes
-  foldchanges = x$log2FoldChange
-  names(foldchanges) = x$Gene_ID
-  
-  # KEGG pathway analysis
-  keggres = gage(exprs = foldchanges, gsets = kegg.sets.mm, same.dir = TRUE)
-  
-  # Select top 20 pathways
-  pathways = data.frame(id = rownames(keggres$less), keggres$less) %>%
-    as_tibble() %>%
-    filter(row_number() <= 20) %>%
-    .$id %>% 
-    as.character()
-  
-  # ID variables with only first 8 characters
-  keggIDs = substr(pathways, start = 1, stop = 8)
-  
-  # Handle output argument
-  if (output == TRUE){
-  
-  # Create new directory with the modified name of the input object `x`
-  output_dir = paste0(substring(as.character(deparse(substitute(x))), 8))
-  if (!dir.exists(output_dir)) {
-    dir.create(output_dir)
-  }
-  
-  # Run pathview and specify output directory
-  sapply(keggIDs, function(pid) {
-    tryCatch({
-      pathview(gene.data = foldchanges, pathway.id = pid, species = "mmu", kegg.dir = "./KEGG_Pathways")
-    }, error = function(e) {
-      message("Error processing pathway ID: ", pid)
-      message("Error message: ", e$message)
-    })
-  })
-  
-  # Return a df with the names of top 20 pathways, for easy Rmd visualization
-  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
-  
-  return(matching_pathways)
-  
-  # Files still get output straight to the WD. Have to manually move output files to generated folder.
-  
-  }
-  else {
-  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
-  
-  return(matching_pathways)
-  }
-}
+BPGON1F_WTG
+BPGON1M_WTG
 ```
 
 ```{r}
-keggPathAnal(reList$res1F_WTG)
-```
-
-```{r message=FALSE, warning=FALSE}
-keggPathAnal(reList$res1M_WTG)
+BPGOP2F_WTG
+BPGOP2M_WTG
 ```
 
 ```{r}
-keggPathAnal(reList$res2F_WTG)
+BPGON2F_WTG
+BPGON2M_WTG
 ```
 
 ```{r}
-keggPathAnal(reList$res2M_WTG)
+BPGOP3F_WTG
+BPGOP3M_WTG
 ```
 
 ```{r}
-keggPathAnal(reList$res3F_WTG)
+BPGON3F_WTG
+BPGON3M_WTG
+```
+
+### CC Analysis
+
+```{r}
+CCGOP1F_WTG = summary(go_PDE(sigRes$res1F_WTG, ont = "CC"))
+CCGOP1M_WTG = summary(go_PDE(sigRes$res1M_WTG, ont = "CC"))
+CCGON1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "CC"))
+CCGON1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "CC"))
+
+CCGOP2F_WTG = summary(go_PDE(sigRes$res2F_WTG, ont = "CC"))
+CCGOP2M_WTG = summary(go_PDE(sigRes$res2M_WTG, ont = "CC"))
+CCGON2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "CC"))
+CCGON2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "CC"))
+
+CCGOP3F_WTG = summary(go_PDE(sigRes$res3F_WTG, ont = "CC"))
+CCGOP3M_WTG = summary(go_PDE(sigRes$res3M_WTG, ont = "CC"))
+CCGON3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "CC"))
+CCGON3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "CC"))
+
+CCGOP1F_WTG
+CCGOP1M_WTG
 ```
 
 ```{r}
-keggPathAnal(reList$res3M_WTG)
+CCGON1F_WTG
+CCGON1M_WTG
+```
+
+
+```{r}
+CCGOP2F_WTG
+CCGOP2M_WTG
 ```
 
 ```{r}
-
+CCGON2F_WTG
+CCGON2M_WTG
 ```
 
 ```{r}
-
+CCGOP3F_WTG
+CCGOP3M_WTG
 ```
 
 ```{r}
+CCGON3F_WTG
+CCGON3M_WTG
+```
 
+### MF Analysis
+
+```{r}
+MFGOP1F_WTG = summary(go_PDE(sigRes$res1F_WTG, ont = "MF"))
+MFGOP1M_WTG = summary(go_PDE(sigRes$res1M_WTG, ont = "MF"))
+MFGON1F_WTG = summary(go_NDE(sigRes$res1F_WTG, ont = "MF"))
+MFGON1M_WTG = summary(go_NDE(sigRes$res1M_WTG, ont = "MF"))
+
+MFGOP2F_WTG = summary(go_PDE(sigRes$res2F_WTG, ont = "MF"))
+MFGOP2M_WTG = summary(go_PDE(sigRes$res2M_WTG, ont = "MF"))
+MFGON2F_WTG = summary(go_NDE(sigRes$res2F_WTG, ont = "MF"))
+MFGON2M_WTG = summary(go_NDE(sigRes$res2M_WTG, ont = "MF"))
+
+MFGOP3F_WTG = summary(go_PDE(sigRes$res3F_WTG, ont = "MF"))
+MFGOP3M_WTG = summary(go_PDE(sigRes$res3M_WTG, ont = "MF"))
+MFGON3F_WTG = summary(go_NDE(sigRes$res3F_WTG, ont = "MF"))
+MFGON3M_WTG = summary(go_NDE(sigRes$res3M_WTG, ont = "MF"))
+
+MFGOP1F_WTG
+MFGOP1M_WTG
 ```
 
 ```{r}
+MFGON1F_WTG
+MFGON1M_WTG
+```
 
+
+```{r}
+MFGOP2F_WTG
+MFGOP2M_WTG
 ```
 
 ```{r}
-
+MFGON2F_WTG
+MFGON2M_WTG
 ```
 
 ```{r}
+MFGOP3F_WTG
+MFGOP3M_WTG
+```
 
+```{r}
+MFGON3F_WTG
+MFGON3M_WTG
+```
+
+### BP PDE & NDE Analysis
+
+```{r}
+BPGO1F_WTG = (summary(allgo(sigRes$res1F_WTG)))
+BPGO1M_WTG = (summary(allgo(sigRes$res1M_WTG)))
+BPGO2F_WTG = (summary(allgo(sigRes$res2F_WTG)))
+BPGO2M_WTG = (summary(allgo(sigRes$res2M_WTG)))
+BPGO3F_WTG = (summary(allgo(sigRes$res3F_WTG)))
+BPGO3M_WTG = (summary(allgo(sigRes$res3M_WTG)))
+
+
+BPGO1F_WTG
+BPGO1M_WTG
+```
+
+```{r}
+BPGO2F_WTG
+BPGO2M_WTG
+```
+
+```{r}
+BPGO3F_WTG
+BPGO3M_WTG
+```
+
+### CC PDE & NDE Analysis
+
+```{r}
+CCGO1F_WTG = summary(allgo(sigRes$res1F_WTG, ont = "CC"))
+CCGO1M_WTG = summary(allgo(sigRes$res1M_WTG, ont = "CC"))
+
+CCGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "CC"))
+CCGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "CC"))
+
+CCGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "CC"))
+CCGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "CC"))
+
+
+CCGO1F_WTG
+CCGO1M_WTG
+```
+
+```{r}
+CCGO2F_WTG
+CCGO2M_WTG
+```
+
+```{r}
+CCGO3F_WTG
+CCGO3M_WTG
+```
+
+### MF PDE & NDE Analysis
+
+```{r}
+MFGO1F_WTG = summary(allgo(sigRes$res1F_WTG, ont = "MF"))
+MFGO1M_WTG = summary(allgo(sigRes$res1M_WTG, ont = "MF"))
+
+MFGO2F_WTG = summary(allgo(sigRes$res2F_WTG, ont = "MF"))
+MFGO2M_WTG = summary(allgo(sigRes$res2M_WTG, ont = "MF"))
+
+MFGO3F_WTG = summary(allgo(sigRes$res3F_WTG, ont = "MF"))
+MFGO3M_WTG = summary(allgo(sigRes$res3M_WTG, ont = "MF"))
+
+MFGO1F_WTG
+MFGO1M_WTG
+```
+
+```{r}
+MFGO2F_WTG
+MFGO2M_WTG
+```
+
+```{r}
+MFGO3F_WTG
+MFGO3M_WTG
+```
+
+add comparisons 36vWT and 41vWT perhaps?
+
+## Comparing different TG lines
+
+### BP Analysis
+
+```{r}
+BPGOP1F_3641 = summary(go_PDE(sigRes$res1F_3641))
+BPGOP1M_3641 = summary(go_PDE(sigRes$res1M_3641))
+BPGON1F_3641 = summary(go_NDE(sigRes$res1F_3641))
+BPGON1M_3641 = summary(go_NDE(sigRes$res1M_3641))
+
+BPGOP2F_3641 = summary(go_PDE(sigRes$res2F_3641))
+BPGOP2M_3641 = summary(go_PDE(sigRes$res2M_3641))
+BPGON2F_3641 = summary(go_NDE(sigRes$res2F_3641))
+BPGON2M_3641 = summary(go_NDE(sigRes$res2M_3641))
+
+BPGOP3F_3641 = summary(go_PDE(sigRes$res3F_3641))
+BPGOP3M_3641 = summary(go_PDE(sigRes$res3M_3641))
+BPGON3F_3641 = summary(go_NDE(sigRes$res3F_3641))
+BPGON3M_3641 = summary(go_NDE(sigRes$res3M_3641))
+
+BPGOP1F_3641
+BPGOP1M_3641
+```
+
+```{r}
+BPGON1F_3641
+BPGON1M_3641
+```
+
+```{r}
+BPGOP2F_3641
+BPGOP2M_3641
+```
+
+```{r}
+BPGON2F_3641
+BPGON2M_3641
+```
+
+```{r}
+BPGOP3F_3641
+BPGOP3M_3641
+```
+
+```{r}
+BPGON3F_3641
+BPGON3M_3641
+```
+
+### CC Analysis
+
+```{r}
+CCGOP1F_3641 = summary(go_PDE(sigRes$res1F_3641, ont = "CC"))
+CCGOP1M_3641 = summary(go_PDE(sigRes$res1M_3641, ont = "CC"))
+CCGON1F_3641 = summary(go_NDE(sigRes$res1F_3641, ont = "CC"))
+CCGON1M_3641 = summary(go_NDE(sigRes$res1M_3641, ont = "CC"))
+
+CCGOP2F_3641 = summary(go_PDE(sigRes$res2F_3641, ont = "CC"))
+CCGOP2M_3641 = summary(go_PDE(sigRes$res2M_3641, ont = "CC"))
+CCGON2F_3641 = summary(go_NDE(sigRes$res2F_3641, ont = "CC"))
+CCGON2M_3641 = summary(go_NDE(sigRes$res2M_3641, ont = "CC"))
+
+CCGOP3F_3641 = summary(go_PDE(sigRes$res3F_3641, ont = "CC"))
+CCGOP3M_3641 = summary(go_PDE(sigRes$res3M_3641, ont = "CC"))
+CCGON3F_3641 = summary(go_NDE(sigRes$res3F_3641, ont = "CC"))
+CCGON3M_3641 = summary(go_NDE(sigRes$res3M_3641, ont = "CC"))
+
+CCGOP1F_3641
+CCGOP1M_3641
+```
+
+```{r}
+CCGON1F_3641
+CCGON1M_3641
+```
+
+```{r}
+CCGOP2F_3641
+CCGOP2M_3641
+```
+
+```{r}
+CCGON2F_3641
+CCGON2M_3641
+```
+
+```{r}
+CCGOP3F_3641
+CCGOP3M_3641
+```
+
+```{r}
+CCGON3F_3641
+CCGON3M_3641
+```
+
+### MF Analysis
+
+```{r}
+MFGOP1F_3641 = summary(go_PDE(sigRes$res1F_3641, ont = "MF"))
+MFGOP1M_3641 = summary(go_PDE(sigRes$res1M_3641, ont = "MF"))
+MFGON1F_3641 = summary(go_NDE(sigRes$res1F_3641, ont = "MF"))
+MFGON1M_3641 = summary(go_NDE(sigRes$res1M_3641, ont = "MF"))
+
+MFGOP2F_3641 = summary(go_PDE(sigRes$res2F_3641, ont = "MF"))
+MFGOP2M_3641 = summary(go_PDE(sigRes$res2M_3641, ont = "MF"))
+MFGON2F_3641 = summary(go_NDE(sigRes$res2F_3641, ont = "MF"))
+MFGON2M_3641 = summary(go_NDE(sigRes$res2M_3641, ont = "MF"))
+
+MFGOP3F_3641 = summary(go_PDE(sigRes$res3F_3641, ont = "MF"))
+MFGOP3M_3641 = summary(go_PDE(sigRes$res3M_3641, ont = "MF"))
+MFGON3F_3641 = summary(go_NDE(sigRes$res3F_3641, ont = "MF"))
+MFGON3M_3641 = summary(go_NDE(sigRes$res3M_3641, ont = "MF"))
+
+MFGOP1F_3641
+MFGOP1M_3641
+```
+
+```{r}
+MFGON1F_3641
+MFGON1M_3641
+```
+
+```{r}
+MFGOP2F_3641
+MFGOP2M_3641
+```
+
+```{r}
+MFGON2F_3641
+MFGON2M_3641
+```
+
+```{r}
+MFGOP3F_3641
+MFGOP3M_3641
+```
+
+```{r}
+MFGON3F_3641
+MFGON3M_3641
+```
+
+### BP PDE & NDE Analysis
+
+```{r}
+BPGO1F_3641 = (summary(allgo(sigRes$res1F_3641)))
+BPGO1M_3641 = (summary(allgo(sigRes$res1M_3641)))
+BPGO2F_3641 = (summary(allgo(sigRes$res2F_3641)))
+BPGO2M_3641 = (summary(allgo(sigRes$res2M_3641)))
+BPGO3F_3641 = (summary(allgo(sigRes$res3F_3641)))
+BPGO3M_3641 = (summary(allgo(sigRes$res3M_3641)))
+
+BPGO1F_3641
+BPGO1M_3641
+```
+
+```{r}
+BPGO2F_3641
+BPGO2M_3641
+```
+
+```{r}
+BPGO3F_3641
+BPGO3M_3641
+```
+
+### CC PDE & NDE Analysis
+
+```{r}
+CCGO1F_3641 = (summary(allgo(sigRes$res1F_3641, ont = "CC")))
+CCGO1M_3641 = (summary(allgo(sigRes$res1M_3641, ont = "CC")))
+CCGO2F_3641 = (summary(allgo(sigRes$res2F_3641, ont = "CC")))
+CCGO2M_3641 = (summary(allgo(sigRes$res2M_3641, ont = "CC")))
+CCGO3F_3641 = (summary(allgo(sigRes$res3F_3641, ont = "CC")))
+CCGO3M_3641 = (summary(allgo(sigRes$res3M_3641, ont = "CC")))
+
+CCGO1F_3641
+CCGO1M_3641
+```
+
+```{r}
+CCGO2F_3641
+CCGO2M_3641
+```
+
+```{r}
+CCGO3F_3641
+CCGO3M_3641
+```
+
+### MF PDE & NDE Analysis
+
+```{r}
+MFGO1F_3641 = (summary(allgo(sigRes$res1F_3641, ont = "MF")))
+MFGO1M_3641 = (summary(allgo(sigRes$res1M_3641, ont = "MF")))
+
+MFGO2F_3641 = (summary(allgo(sigRes$res2F_3641, ont = "MF")))
+MFGO2M_3641 = (summary(allgo(sigRes$res2M_3641, ont = "MF")))
+
+MFGO3F_3641 = (summary(allgo(sigRes$res3F_3641, ont = "MF")))
+MFGO3M_3641 = (summary(allgo(sigRes$res3M_3641, ont = "MF")))
+
+MFGO1F_3641
+MFGO1M_3641
+```
+
+```{r}
+MFGO2F_3641
+MFGO2M_3641
+```
+
+```{r}
+MFGO3F_3641
+MFGO3M_3641
+```
+
+## Timepoint Comparisons
+
+### Line 36 BP Analysis
+
+```{r}
+BPGOPF_36_21 = (summary(go_PDE(sigRes$resF_36_21)))
+BPGOPM_36_21 = (summary(go_PDE(sigRes$resM_36_21)))
+BPGOMF_36_21 = (summary(go_NDE(sigRes$resF_36_21)))
+BPGOMM_36_21 = (summary(go_NDE(sigRes$resM_36_21)))
+
+BPGOPF_36_31 = (summary(go_PDE(sigRes$resF_36_31)))
+BPGOPM_36_31 = (summary(go_PDE(sigRes$resM_36_31)))
+BPGOMF_36_31 = (summary(go_NDE(sigRes$resF_36_31)))
+BPGOMM_36_31 = (summary(go_NDE(sigRes$resM_36_31)))
+
+BPGOPF_36_32 = (summary(go_PDE(sigRes$resF_36_32)))
+BPGOPM_36_32 = (summary(go_PDE(sigRes$resM_36_32)))
+BPGOMF_36_32 = (summary(go_NDE(sigRes$resF_36_32)))
+BPGOMM_36_32 = (summary(go_NDE(sigRes$resM_36_32)))
+
+BPGOPF_36_21
+BPGOPM_36_21
+```
+
+```{r}
+BPGOMF_36_21
+BPGOMM_36_21
+```
+
+```{r}
+BPGOPF_36_31
+BPGOPM_36_31
+```
+
+```{r}
+BPGOMF_36_31
+BPGOMM_36_31
+```
+
+```{r}
+BPGOPF_36_32
+BPGOPM_36_32
+```
+
+```{r}
+BPGOMF_36_32
+BPGOMM_36_32
+```
+
+### Line 41 BP Analysis
+
+```{r}
+BPGOPF_41_21 = (summary(go_PDE(sigRes$resF_41_21)))
+BPGOPM_41_21 = (summary(go_PDE(sigRes$resM_41_21)))
+BPGOMF_41_21 = (summary(go_NDE(sigRes$resF_41_21)))
+BPGOMM_41_21 = (summary(go_NDE(sigRes$resM_41_21)))
+
+BPGOPF_41_31 = (summary(go_PDE(sigRes$resF_41_31)))
+BPGOPM_41_31 = (summary(go_PDE(sigRes$resM_41_31)))
+BPGOMF_41_31 = (summary(go_NDE(sigRes$resF_41_31)))
+BPGOMM_41_31 = (summary(go_NDE(sigRes$resM_41_31)))
+
+BPGOPF_41_32 = (summary(go_PDE(sigRes$resF_41_32)))
+BPGOPM_41_32 = (summary(go_PDE(sigRes$resM_41_32)))
+BPGOMF_41_32 = (summary(go_NDE(sigRes$resF_41_32)))
+BPGOMM_41_32 = (summary(go_NDE(sigRes$resM_41_32)))
+
+BPGOPF_41_21
+BPGOPM_41_21
+```
+
+```{r}
+BPGOMF_41_21
+BPGOMM_41_21
+```
+
+```{r}
+BPGOPF_41_31
+BPGOPM_41_31
+```
+
+```{r}
+BPGOMF_41_31
+BPGOMM_41_31
+```
+
+```{r}
+BPGOPF_41_32
+BPGOPM_41_32
+```
+
+```{r}
+BPGOMF_41_32
+BPGOMM_41_32
 ```
