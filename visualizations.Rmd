@@ -25,14 +25,23 @@ library(ggplot2)
 library(gplots)
 library(pheatmap)
 library(vsn)
-
 library(dplyr)
 ```
 
 ## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with panther-db
 
 ```{r message=FALSE, warning=FALSE}
+
+# Setting Working Directory (WD for easier output management)
+
+#setwd("your/file/path")
+setwd("C:/Users/Lorenzo/Documents/MESTRADO/R/RNAbps")
+
+# Importing main reads file
+
 data = as.data.frame(read_excel("Reads_genes.xlsx"))
+
+# Keeping only the columns with MGI, RefSeq ID and Gene symbols + raw counts, omitting NAs 
 
 reads = data %>% select(MGI, Gene_ID, Gene_Symbol, contains("Count"))
 
@@ -45,14 +54,20 @@ reads = na.omit(reads)
 ## Importing panther-db list of RBPs and tidying it up (browsed for RNA Metabolism Proteins and filtered for Mus musculus, exported to and edited in excel so the only row was MGI IDs, removed genes that did not have MGI IDs)
 
 ```{r message=FALSE, warning=FALSE}
+
+# Importing list of RBPs, omitting NAs
+
 mainPanther = as.data.frame(read_excel('Panther-RNA-ALL.xlsm', col_names = FALSE))
 
 mainPanther = mainPanther[!is.na(mainPanther)]
 
-#comment this for analyzing all genes (uncomment following line)
+# Filtering the reads object so it only contains genes whose MGI is also present in the list of RBPs, resulting in a final "rbps" object 
+#(alternatively comment this first line and uncomment the last one to analyze all genes)
+
+#comment this for analyzing all genes (uncomment last line)
 rbps = reads[reads$MGI %in% mainPanther,]
 
-#comment this for analyzing only rbps (uncomment last line) 
+#comment this for analyzing only rbps (uncomment previous line) 
 #rbps = reads
 
 ```
@@ -61,9 +76,14 @@ rbps = reads[reads$MGI %in% mainPanther,]
 
 ```{r message=FALSE, warning=FALSE}
 
+# Naming rows in the rbps object after their MGI ID and removing all columns except those with the counts for each condition
+
 rownames(rbps) = rbps$MGI
 
 rbps = rbps[,-c(1,2,3)]
+
+# Naming raw counts columns after their conditions, based on an external file
+
 colnames(rbps) = (read_excel("conditions.xlsx", col_names = FALSE))[1,]
               
 ```
@@ -194,6 +214,7 @@ l3M_WT41 = c("WT","WT","WT","41","41","41","41")
 l3F_3641 = c("36","41","41")
 l3M_3641 = c("36","36","36","36","36","41","41","41", "41")
 
+# Binding timepoints and line lists for each condition
 
 c1F_WTG = as.data.frame(cbind(colnames(T1F_WTG),l1F_WTG))
 c1M_WTG = as.data.frame(cbind(colnames(T1M_WTG),l1M_WTG))
@@ -247,6 +268,7 @@ cM_41 = as.data.frame(cbind(colnames(rbpsM_41), tpM_41))
 ```
 
 ## Conversion into DESeqDataSets
+
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 
 dds1F_WTG = DESeqDataSetFromMatrix(countData = T1F_WTG,colData = c1F_WTG,
@@ -331,6 +353,7 @@ ddsM_41 = DESeqDataSetFromMatrix(countData = rbpsM_41,colData = cM_41,
 ```
 
 ## Running DESeq
+
 ```{r message=FALSE, warning=FALSE}
 
 dds1F_WTG = DESeq(dds1F_WTG)
@@ -381,7 +404,6 @@ ddsM_36 = DESeq(ddsM_36)
 ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
 ```
-
 ```{r}
 
 ## Filtering for genes read less than 5 times across all samples (Only for histogram visualizations)
@@ -439,8 +461,7 @@ ddsM_41 = ddsM_41[rowSums(counts(ddsM_41)) > 5,]
 
 ```{r}
 
-## log 2 transform (for visualizations)
-
+## log 2 transform 
 rl1F_WTG = rlog(dds1F_WTG)
 rl1M_WTG = rlog(dds1M_WTG)
 
