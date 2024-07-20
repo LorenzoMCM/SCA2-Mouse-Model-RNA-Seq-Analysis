@@ -131,7 +131,7 @@ T3M_36 = rbpsM_36[,grep("^3",names(rbpsM_36), value = TRUE)]
 T3F_TG = rbpsF_TG[,grep("^3",names(rbpsF_TG), value = TRUE)]
 T3M_TG = rbpsM_TG[,grep("^3",names(rbpsM_TG), value = TRUE)]
 
-#Binding final objects for comparison between different conditions (obj names = Timepoint-Sex-Line-conditions)
+#Binding final objects for comparison between different conditions (Timepoint-Sex-Line-conditions)
 T1F_WT36 = bind_cols(T1F_WT, T1F_36)
 T1M_WT36 = bind_cols(T1M_WT, T1M_36)
 T1F_WT41 = bind_cols(T1F_WT, T1F_41)
@@ -566,5 +566,136 @@ plotPCA(rlM_41, intgroup = c("tpM_41"))
 
 plotPCA(rlF_TG, intgroup = c("tpF_TG"))
 plotPCA(rlM_TG, intgroup = c("tpM_TG"))
+
+```
+
+```{r}
+
+## REMEMBER TO REFERENCE ALEX SOUPIR FOR FUNCTIONS BELOW
+
+detectGroups <- function (x){  # x are col names
+  tem <- gsub("[0-9]*$","",x) # Remove all numbers from end
+  #tem = gsub("_Rep|_rep|_REP","",tem)
+  tem <- gsub("_$","",tem); # remove "_" from end
+  tem <- gsub("_Rep$","",tem); # remove "_Rep" from end
+  tem <- gsub("_rep$","",tem); # remove "_rep" from end
+  tem <- gsub("_REP$","",tem)  # remove "_REP" from end
+  return( tem )
+}
+
+dist2 <- function(x, ...)   # distance function = 1-PCC (Pearson's correlation coefficient)
+  as.dist(1-cor(t(x), method="pearson"))
+
+hclust2 <- function(x, method="average", ...)  # average linkage in hierarchical clustering
+  hclust(x, method=method, ...)
+```
+
+```{r}
+seqHeatmap = function(x,n = 50){
+  
+  x = assay(x)
+  if(n>dim(x)[1]) n = dim(x)[1] # max as data
+  
+  x = x[order(apply(x,1,sd), decreasing = TRUE),] # sort genes by stardad deviation
+  
+  x = x[1:n,] # only keep the n genes
+  
+  # this will cutoff very large values, which could skew the color 
+  x=as.matrix(x[1:n,])-apply(x[1:n,],1,mean)
+  cutoff = median(unlist(x)) + 4*sd (unlist(x)) 
+  x[x>cutoff] <- cutoff
+  cutoff = median(unlist(x)) - 4*sd (unlist(x)) 
+  x[x< cutoff] <- cutoff
+  
+  group = detectGroups(colnames(x))
+  group.colors = rainbow(length(unique(group)))
+  
+  lmat = rbind(c(5,4), c(0,1), c(3,2))
+  lwid = c(1.5,4)
+  lhei = c(1,.2,4)
+  
+  par(mar = c(10, 10, 4, 2) + 0.1)  
+  
+  heatmap.2(x, distfun = dist2,hclustfun=hclust2,
+	 col=greenred(75), density.info="none", trace="none", scale="none", keysize=.5
+	,key=T, symkey=F
+	,ColSideColors=group.colors[ as.factor(group)]
+	,margins=c(8,12)
+	,cexRow=1
+	,srtCol=45
+	,cexCol=1.  # size of font for sample names
+	,lmat = lmat, lwid = lwid, lhei = lhei
+	)
+  
+}
+
+# Idk why but for this to output without an error (allowing knitting) you need to also add the figure dimensions at the start of the chunk
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1F_WTG, n = 200)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1M_WTG)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2F_WTG)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2M_WTG)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3F_WTG)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3M_WTG)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1F_WT36)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1F_WT41)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap()
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
 
 ```
