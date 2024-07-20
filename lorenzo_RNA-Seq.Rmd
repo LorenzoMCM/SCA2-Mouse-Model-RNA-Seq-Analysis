@@ -41,9 +41,16 @@ library(dplyr)
 
 ```{r message=FALSE, warning=FALSE}
 
-setwd("your/file/path")
+# Setting Working Directory (WD for easier output management)
+
+#setwd("your/file/path")
+setwd("C:/Users/Lorenzo/Documents/MESTRADO/R/RNAbps")
+
+# Importing main reads file
 
 data = as.data.frame(read_excel("Reads_genes.xlsx"))
+
+# Keeping only the columns with MGI, RefSeq ID and Gene symbols + raw counts, omitting NAs 
 
 reads = data %>% select(MGI, Gene_ID, Gene_Symbol, contains("Count"))
 
@@ -56,14 +63,20 @@ reads = na.omit(reads)
 ## Importing panther-db list of RBPs and tidying it up (browsed for RNA Metabolism Proteins and filtered for Mus musculus, exported to and edited in excel so the only row was MGI IDs, removed genes that did not have MGI IDs)
 
 ```{r message=FALSE, warning=FALSE}
+
+# Importing list of RBPs, omitting NAs
+
 mainPanther = as.data.frame(read_excel('Panther-RNA-ALL.xlsm', col_names = FALSE))
 
 mainPanther = mainPanther[!is.na(mainPanther)]
 
-#comment this for analyzing all genes (uncomment following line)
+# Filtering the reads object so it only contains genes whose MGI is also present in the list of RBPs, resulting in a final "rbps" object 
+#(alternatively comment this first line and uncomment the last one to analyze all genes)
+
+#comment this for analyzing all genes (uncomment last line)
 rbps = reads[reads$MGI %in% mainPanther,]
 
-#comment this for analyzing only rbps (uncomment last line) 
+#comment this for analyzing only rbps (uncomment previous line) 
 #rbps = reads
 
 ```
@@ -72,9 +85,14 @@ rbps = reads[reads$MGI %in% mainPanther,]
 
 ```{r message=FALSE, warning=FALSE}
 
+# Naming rows in the rbps object after their MGI ID and removing all columns except those with the counts for each condition
+
 rownames(rbps) = rbps$MGI
 
 rbps = rbps[,-c(1,2,3)]
+
+# Naming raw counts columns after their conditions, based on an external file
+
 colnames(rbps) = (read_excel("conditions.xlsx", col_names = FALSE))[1,]
               
 ```
@@ -205,6 +223,7 @@ l3M_WT41 = c("WT","WT","WT","41","41","41","41")
 l3F_3641 = c("36","41","41")
 l3M_3641 = c("36","36","36","36","36","41","41","41", "41")
 
+# Binding timepoints and line lists for each condition
 
 c1F_WTG = as.data.frame(cbind(colnames(T1F_WTG),l1F_WTG))
 c1M_WTG = as.data.frame(cbind(colnames(T1M_WTG),l1M_WTG))
@@ -258,6 +277,7 @@ cM_41 = as.data.frame(cbind(colnames(rbpsM_41), tpM_41))
 ```
 
 ## Conversion into DESeqDataSets
+
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 
 dds1F_WTG = DESeqDataSetFromMatrix(countData = T1F_WTG,colData = c1F_WTG,
@@ -342,6 +362,7 @@ ddsM_41 = DESeqDataSetFromMatrix(countData = rbpsM_41,colData = cM_41,
 ```
 
 ## Running DESeq
+
 ```{r message=FALSE, warning=FALSE}
 
 dds1F_WTG = DESeq(dds1F_WTG)
@@ -430,8 +451,8 @@ res2M_WT36 = results(dds2M_WT36, contrast = c("l2M_WT36", "36", "WT"))
 res2F_WT41 = results(dds2F_WT41, contrast = c("l2F_WT41", "41", "WT"))
 res2M_WT41 = results(dds2M_WT41, contrast = c("l2M_WT41", "41", "WT"))
 
-res2F3641 = results(dds2F_3641, contrast = c("l2F_3641", "41", "36"))
-res2M3641 = results(dds2M_3641, contrast = c("l2M_3641", "41", "36"))
+res2F_3641 = results(dds2F_3641, contrast = c("l2F_3641", "41", "36"))
+res2M_3641 = results(dds2M_3641, contrast = c("l2M_3641", "41", "36"))
 
 res3F_WTG = results(dds3F_WTG, contrast = c("l3F_WTG", "TG", "WT"))
 res3M_WTG = results(dds3M_WTG, contrast = c("l3M_WTG", "TG", "WT"))
@@ -478,15 +499,20 @@ resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
 resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
 ```
 
-## Converting results to dfs, removing MGI_IDs from rownames, adding MGI,
+## Converting results to dfs, removing MGI_IDs from rownames, re-adding MGI,
 entrez and Symbol columns 
 
 ```{r message=FALSE}
+
+# Making a list out of all results objects
+
 allObj = ls()  
 
 reObj = allObj[grep("^res", allObj)]
 
 reList = mget(reObj)
+
+# Adding back MGI, RefSeq ID and symbol columns to all results objects
 
 reList = lapply(reList, function(res) {
 
@@ -514,6 +540,7 @@ pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "
   # Sort the filtered rows by padj value
   sorted_x <- filtered_x[order(filtered_x$padj), ]
   
+  # Handle max condition. If a number, returned DF has that many lines
   if (!is.null(max)) {
     sorted_x <- head(sorted_x, max)
   }
@@ -523,10 +550,8 @@ pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "
 
 ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
 
-    # Filter rows based on log2FoldChange and padj
   filtered_x <- x[(x$log2FoldChange < lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
   
-  # Sort the filtered rows by padj value
   sorted_x <- filtered_x[order(filtered_x$padj), ]
   
   if (!is.null(max)) {
@@ -538,10 +563,8 @@ ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = 
 
 degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
   
-  # Filter rows based on adj
   filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
   
-  # Sort the filtered rows by padj value
   sorted_x <- filtered_x[order(filtered_x$padj), ]
   
   if (!is.null(max)) {
@@ -605,6 +628,8 @@ library(gage)
 library(gageData)
 library(limma)
 
+# Importing data for GO path analysis and subsetting according to the kind of analysis needed, same with KEGG
+
 data("go.sets.mm")
 data("go.subs.mm")
 data("kegg.sets.mm")
@@ -615,6 +640,8 @@ goccsets = go.sets.mm[go.subs.mm$CC]
 gomfsets = go.sets.mm[go.subs.mm$MF]
 
 kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
+
+# Df with names of KEGG pathway names, important for a function ahead
 
 KEGGpathNames = getKEGGPathwayNames(species.KEGG = "mmu")
 
@@ -634,7 +661,7 @@ goPathAnal = function(x, y = gobpsets){
   return(gobpres)
 } 
 
-keggPathAnal = function(x, output = FALSE) {
+keggPathAnal = function(x, top = 20, output = FALSE) {
 
   # Extract and name fold changes
   foldchanges = x$log2FoldChange
@@ -643,10 +670,10 @@ keggPathAnal = function(x, output = FALSE) {
   # KEGG pathway analysis
   keggres = gage(exprs = foldchanges, gsets = kegg.sets.mm, same.dir = TRUE)
   
-  # Select top 20 pathways
+  # Select top pathways
   pathways = data.frame(id = rownames(keggres$less), keggres$less) %>%
     as_tibble() %>%
-    filter(row_number() <= 20) %>%
+    filter(row_number() <= top) %>%
     .$id %>% 
     as.character()
   
@@ -680,6 +707,8 @@ keggPathAnal = function(x, output = FALSE) {
   # Files still get output straight to the WD. Have to manually move output files to generated folder.
   
   }
+  
+  # When output FALSE just returns df with the name of top pathways
   else {
   matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
   
@@ -688,11 +717,13 @@ keggPathAnal = function(x, output = FALSE) {
 }
 ```
 
+## Comparing WT and TG mice
+### WT v All TG
 ```{r}
 keggPathAnal(reList$res1F_WTG)
 ```
 
-```{r message=FALSE, warning=FALSE}
+```{r}
 keggPathAnal(reList$res1M_WTG)
 ```
 
@@ -712,8 +743,162 @@ keggPathAnal(reList$res3F_WTG)
 keggPathAnal(reList$res3M_WTG)
 ```
 
-```{r}
+### WT v 36
 
+```{r}
+keggPathAnal(reList$res1F_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res1M_WT36, output = TRUE)
+```
+
+```{r}
+keggPathAnal(reList$res2F_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res2M_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res3F_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res3M_WT36)
+```
+
+### WT v 41
+
+```{r}
+keggPathAnal(reList$res1F_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res1M_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res2F_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res2M_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res3F_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res3M_WT41, output = TRUE)
+```
+
+## Comparing TG lines
+
+```{r}
+keggPathAnal(reList$res1F_3641)
+```
+
+```{r}
+keggPathAnal(reList$res1M_3641)
+```
+
+```{r}
+keggPathAnal(reList$res2F_3641)
+```
+
+```{r}
+keggPathAnal(reList$res2M_3641)
+```
+
+```{r}
+keggPathAnal(reList$res3F_3641)
+```
+
+```{r}
+keggPathAnal(reList$res3M_3641)
+```
+
+## Comparing Timepoints
+
+### All TG
+
+```{r}
+keggPathAnal(reList$resF_TG21)
+```
+```{r}
+keggPathAnal(reList$resM_TG21)
+```
+
+```{r}
+keggPathAnal(reList$resF_TG31)
+```
+
+```{r}
+keggPathAnal(reList$resM_TG31)
+```
+
+```{r}
+keggPathAnal(reList$resF_TG32)
+```
+
+```{r}
+keggPathAnal(reList$resM_TG32)
+```
+
+
+### 36
+
+```{r}
+keggPathAnal(reList$resF_36_21)
+```
+
+```{r}
+keggPathAnal(reList$resM_36_21,output)
+```
+
+```{r}
+keggPathAnal(reList$resF_36_31)
+```
+
+```{r}
+keggPathAnal(reList$resM_36_31)
+```
+
+```{r}
+keggPathAnal(reList$resF_36_32)
+```
+
+```{r}
+keggPathAnal(reList$resM_36_32)
+```
+
+### 41
+
+```{r}
+keggPathAnal(reList$resF_41_21)
+```
+
+```{r}
+keggPathAnal(reList$resM_41_21)
+```
+
+```{r}
+keggPathAnal(reList$resF_41_31)
+```
+
+```{r}
+keggPathAnal(reList$resM_41_31)
+```
+
+```{r}
+keggPathAnal(reList$resF_41_32)
+```
+
+```{r}
+keggPathAnal(reList$resM_41_32, output)
 ```
 
 ```{r}
