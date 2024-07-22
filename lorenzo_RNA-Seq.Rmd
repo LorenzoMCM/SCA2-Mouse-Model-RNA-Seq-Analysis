@@ -641,7 +641,7 @@ gomfsets = go.sets.mm[go.subs.mm$MF]
 
 kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
 
-# Df with names of KEGG pathway names, important for a function ahead
+# Df with names of KEGG pathway names, important for function ahead
 
 KEGGpathNames = getKEGGPathwayNames(species.KEGG = "mmu")
 
@@ -660,6 +660,8 @@ goPathAnal = function(x, y = gobpsets){
   
   return(gobpres)
 } 
+
+# Function for KEGG pathways analysis, if output == TRUE it outputs images of the relevant pathways with highlighted DEGs
 
 keggPathAnal = function(x, top = 20, output = FALSE) {
 
