@@ -43,8 +43,8 @@ library(dplyr)
 
 # Setting Working Directory (WD for easier output management)
 
-setwd("your/file/path")
-
+#setwd("your/file/path")
+setwd("C:/Users/Lorenzo/Documents/MESTRADO/R/RNAbps")
 
 # Importing main reads file
 
@@ -574,37 +574,36 @@ genespAll = lapply(reList, pdegenes, lfcThreshold = 1, padjThreshold = 0.1, max 
 
 genesnAll = lapply(reList, ndegenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
 
-genesAll = lapply(reList, degenes, lfcThreshold = 1, padjThreshold = 0.1, key = "MGI", max = NULL)
+genesAll = lapply(reList, degenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
 
 ```
 
 ## Outputting as csv for easy consulting
 
 ```{r message=FALSE, warning=FALSE}
-#binding vectors into dfs
-dfpAll = as.data.frame(do.call(rbind, genespAll))
-dfnAll = as.data.frame(do.call(rbind, genesnAll))
-dfAll = as.data.frame(do.call(rbind, genesAll))
 
-#function for replacing repeated genes for NAs
+
+# Function for replacing repeats for "NA"
 replace_repeats_with_na <- function(x) {
   duplicated_elements <- duplicated(x)
   x[duplicated_elements] <- NA
   return(x)
 }
 
-#Applying NA function and transposing output so conditions are columns 
-dfpAll = as.data.frame(t(apply(dfpAll, 1, replace_repeats_with_na)))
-dfnAll = as.data.frame(t(apply(dfnAll, 1, replace_repeats_with_na)))
-dfAll = as.data.frame(t(apply(dfAll, 1, replace_repeats_with_na)))
 
-dfpAll = as.data.frame(t(dfpAll))
-dfnAll = as.data.frame(t(dfnAll))
-dfAll = as.data.frame(t(dfAll)) 
+# Function for tidying up output
+outputTidy = function(x, title = "output.csv"){
+  
+  df = as.data.frame(do.call(rbind, x))
+  
+  df = as.data.frame(t(apply(df, 1, replace_repeats_with_na)))
+  
+  df = as.data.frame(t(df))
+  
+  write.csv(df, file = title)
+}
 
-write.csv(dfpAll, file = "gen_de_pos_rbps.csv")
-write.csv(dfnAll, file = "gen_de_neg_rbps.csv")
-write.csv(dfAll, file = "gen_de_rbps.csv")
+outputTidy(genesAll, title = "DEG_all.csv")
 
 #When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
 
