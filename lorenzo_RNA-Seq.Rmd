@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','readxl','DESeq2','ggplot2'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','biomaRt','readxl','DESeq2','ggplot2'), repos = "http://cran.us.r-project.org" )
 ```
 
 ```{r eval=FALSE}
@@ -34,6 +34,8 @@ library(regionReport)
 library(clusterProfiler)
 library(org.Mm.eg.db)
 library(AnnotationDbi)
+library(biomaRt)
+library(stringr)
 library(dplyr)
 ```
 
@@ -41,10 +43,9 @@ library(dplyr)
 
 ```{r message=FALSE, warning=FALSE}
 
-# Setting Working Directory (WD for easier output management)
+# Setting Working Directory 
 
-#setwd("your/file/path")
-setwd("C:/Users/Lorenzo/Documents/MESTRADO/R/RNAbps")
+setwd("your/file/path")
 
 # Importing main reads file
 
@@ -57,6 +58,73 @@ reads = data %>% select(MGI, Gene_ID, Gene_Symbol, contains("Count"))
 reads = as.data.frame(reads)
 
 reads = na.omit(reads)
+
+```
+
+```{r}
+
+# Importing MSGP database excel
+
+MSGP = as.data.frame(read_excel("MSGP.xlsx"))
+
+# Removing blank line and only keeping a list of entrez IDs
+
+MSGP = MSGP[-1,]
+
+MSGP = MSGP$`Entrez Gene ID`
+
+MSGP = unique(MSGP)
+
+# Importing ensembl database and listing relevant criteria for homologue df
+
+ensembl = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+human = useDataset("hsapiens_gene_ensembl", mart = ensembl)
+mouse = useDataset("mmusculus_gene_ensembl", mart = ensembl)
+
+hAttributes = c("ensembl_gene_id", "external_gene_name",
+                "mmusculus_homolog_ensembl_gene", 
+                "mmusculus_homolog_associated_gene_name")
+
+# Creating homologue df out of ensembl filtered for ENS ID and name
+
+orth.mouse = getBM(hAttributes, filters = "with_mmusculus_homolog", values = TRUE,
+                   mart = human, uniqueRows = TRUE)
+
+# Merging entrez and MGI IDs into df
+
+mapping = getBM(attributes = c('ensembl_gene_id', 'entrezgene_id'),
+                 filters = 'ensembl_gene_id',
+                 values = orth.mouse$ensembl_gene_id,
+                 mart = human)
+
+orth.mouse = merge(orth.mouse, mapping, by.x = 'ensembl_gene_id', by.y = 'ensembl_gene_id', all.x = TRUE)
+
+mapping_mmus = getBM(attributes = c("ensembl_gene_id", "entrezgene_id", "mgi_id"),
+                     filters = "ensembl_gene_id",
+                     values = orth.mouse$mmusculus_homolog_ensembl_gene,
+                     mart = mouse)
+
+mapping_mmus = mapping_mmus %>% rename(mmusculus_homolog_ensembl_gene = ensembl_gene_id)
+mapping_mmus = mapping_mmus %>% rename(mmusculus_homolog_entrez_id = entrezgene_id)
+
+orth.mouse = merge(orth.mouse, mapping_mmus, by.x = "mmusculus_homolog_ensembl_gene", by.y = "mmusculus_homolog_ensembl_gene", all.x = TRUE)
+
+# Removing ENS IDs and MGI: prefix in all MGI entries
+
+orth.mouse = orth.mouse[,-c(1,2)]
+
+orth.mouse$mgi_id = gsub("MGI:", "", orth.mouse$mgi_id)
+
+# Keeping only the genes whose entrez IDs are present in the MSGP entrez ID list
+
+MSGP_ID = orth.mouse[orth.mouse$entrezgene_id %in% MSGP,]
+
+MSGP_ID = unique(MSGP_ID)
+
+# If analyzing human SG genes, uncomment this
+
+#rbps = reads[reads$MGI %in% MSGP_ID$mgi_id,]
 
 ```
 
@@ -489,8 +557,8 @@ resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
 resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
 ```
 
-## Converting results to dfs, removing MGI_IDs from rownames, re-adding MGI,
-entrez and Symbol columns 
+## Converting results to dfs, adding MGI,
+entrez and Symbol as columns 
 
 ```{r message=FALSE}
 
@@ -604,6 +672,8 @@ outputTidy = function(x, title = "output.csv"){
 }
 
 outputTidy(genesAll, title = "DEG_all.csv")
+
+outputTidy(genespAll,title = "DEG_P_all.csv")
 
 #When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
 
