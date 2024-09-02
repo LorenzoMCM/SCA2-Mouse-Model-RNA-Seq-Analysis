@@ -505,6 +505,34 @@ resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
 library(GO.db)
 library(GOstats)
 ```
+## Converting results to dfs, adding MGI,
+entrez and Symbol as columns 
+
+```{r message=FALSE}
+
+# Making a list out of all results objects
+
+allObj = ls()  
+
+reObj = allObj[grep("^res", allObj)]
+
+reList = mget(reObj)
+
+# Adding back MGI, RefSeq ID and symbol columns to all results objects
+
+reList = lapply(reList, function(res) {
+
+  df = as.data.frame(res)
+
+  df$MGI = rownames(df)
+  
+  df = merge(df, reads[, c("MGI", "Gene_ID", "Gene_Symbol")], by = "MGI", all.x = TRUE)
+  
+  rownames(df) <- NULL
+  
+  return(df)
+})
+```
 
 ```{r}
 #Subsetting only genes with a padj below 0.05 from results
