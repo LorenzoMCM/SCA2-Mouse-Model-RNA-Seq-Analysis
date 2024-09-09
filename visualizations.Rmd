@@ -412,61 +412,6 @@ ddsM_41 = DESeq(ddsM_41)
 
 ```{r}
 
-## Filtering for genes read less than 5 times across all samples (Only for histogram visualizations)
-
-
-dds1F_WTG = dds1F_WTG[rowSums(counts(dds1F_WTG)) > 5,]
-dds1M_WTG = dds1M_WTG[rowSums(counts(dds1M_WTG)) > 5,]
-
-dds1F_WT36 = dds1F_WT36[rowSums(counts(dds1F_WT36)) > 5,]
-dds1M_WT36 = dds1M_WT36[rowSums(counts(dds1M_WT36)) > 5,]
-
-dds1F_WT41 = dds1F_WT41[rowSums(counts(dds1F_WT41)) > 5,]
-dds1M_WT41 = dds1M_WT41[rowSums(counts(dds1M_WT41)) > 5,]
-
-dds1F_3641 = dds1F_3641[rowSums(counts(dds1F_3641)) > 5,]
-dds1M_3641 = dds1M_3641[rowSums(counts(dds1M_3641)) > 5,]
-
-dds2F_WTG = dds2F_WTG[rowSums(counts(dds2F_WTG)) > 5,]
-dds2M_WTG = dds2M_WTG[rowSums(counts(dds2M_WTG)) > 5,]
-
-dds2F_WT36 = dds2F_WT36[rowSums(counts(dds2F_WT36)) > 5,]
-dds2M_WT36 = dds2M_WT36[rowSums(counts(dds2M_WT36)) > 5,]
-
-dds2F_WT41 = dds2F_WT41[rowSums(counts(dds2F_WT41)) > 5,]
-dds2M_WT41 = dds2M_WT41[rowSums(counts(dds2M_WT41)) > 5,]
-
-dds2F_3641 = dds2F_3641[rowSums(counts(dds2F_3641)) > 5,]
-dds2M_3641 = dds2M_3641[rowSums(counts(dds2M_3641)) > 5,]
-
-dds3F_WTG = dds3F_WTG[rowSums(counts(dds3F_WTG)) > 5,]
-dds3M_WTG = dds3M_WTG[rowSums(counts(dds3M_WTG)) > 5,]
-
-dds3F_WT36 = dds3F_WT36[rowSums(counts(dds3F_WT36)) > 5,]
-dds3M_WT36 = dds3M_WT36[rowSums(counts(dds3M_WT36)) > 5,]
-
-dds3F_WT41 = dds3F_WT41[rowSums(counts(dds3F_WT41)) > 5,]
-dds3M_WT41 = dds3M_WT41[rowSums(counts(dds3M_WT41)) > 5,]
-
-dds3F_3641 = dds3F_3641[rowSums(counts(dds3F_3641)) > 5,]
-dds3M_3641 = dds3M_3641[rowSums(counts(dds3M_3641)) > 5,]
-
-ddsF_WT = ddsF_WT[rowSums(counts(ddsF_WT)) > 5,]
-ddsM_WT = ddsM_WT[rowSums(counts(ddsM_WT)) > 5,]
-
-ddsF_TG = ddsF_TG[rowSums(counts(ddsF_TG)) > 5,]
-ddsM_TG = ddsM_TG[rowSums(counts(ddsM_TG)) > 5,]
-
-ddsF_36 = ddsF_36[rowSums(counts(ddsF_36)) > 5,]
-ddsM_36 = ddsM_36[rowSums(counts(ddsM_36)) > 5,]
-
-ddsF_41 = ddsF_41[rowSums(counts(ddsF_41)) > 5,]
-ddsM_41 = ddsM_41[rowSums(counts(ddsM_41)) > 5,]
-
-```
-
-```{r}
-
 ## log 2 transform 
 rl1F_WTG = rlog(dds1F_WTG)
 rl1M_WTG = rlog(dds1M_WTG)
@@ -517,6 +462,81 @@ rlF_41 = rlog(ddsF_41)
 rlM_41 = rlog(ddsM_41)
 
 ```
+
+## Converting to result objects
+
+```{r}
+
+res1F_WTG = results(dds1F_WTG, contrast = c("l1F_WTG", "TG", "WT"))
+res1M_WTG = results(dds1M_WTG, contrast = c("l1M_WTG", "TG", "WT"))
+
+res1F_WT36 = results(dds1F_WT36, contrast = c("l1F_WT36", "36", "WT"))
+res1M_WT36 = results(dds1M_WT36, contrast = c("l1M_WT36", "36", "WT"))
+
+res1F_WT41 = results(dds1F_WT41, contrast = c("l1F_WT41", "41", "WT"))
+res1M_WT41 = results(dds1M_WT41, contrast = c("l1M_WT41", "41", "WT"))
+
+res1F_3641 = results(dds1F_3641, contrast = c("l1F_3641", "41", "36"))
+res1M_3641 = results(dds1M_3641, contrast = c("l1M_3641", "41", "36"))
+
+res2F_WTG = results(dds2F_WTG, contrast = c("l2F_WTG", "TG", "WT"))
+res2M_WTG = results(dds2M_WTG, contrast = c("l2M_WTG", "TG", "WT"))
+
+res2F_WT36 = results(dds2F_WT36, contrast = c("l2F_WT36", "36", "WT"))
+res2M_WT36 = results(dds2M_WT36, contrast = c("l2M_WT36", "36", "WT"))
+
+res2F_WT41 = results(dds2F_WT41, contrast = c("l2F_WT41", "41", "WT"))
+res2M_WT41 = results(dds2M_WT41, contrast = c("l2M_WT41", "41", "WT"))
+
+res2F_3641 = results(dds2F_3641, contrast = c("l2F_3641", "41", "36"))
+res2M_3641 = results(dds2M_3641, contrast = c("l2M_3641", "41", "36"))
+
+res3F_WTG = results(dds3F_WTG, contrast = c("l3F_WTG", "TG", "WT"))
+res3M_WTG = results(dds3M_WTG, contrast = c("l3M_WTG", "TG", "WT"))
+
+res3F_WT36 = results(dds3F_WT36, contrast = c("l3F_WT36", "36", "WT"))
+res3M_WT36 = results(dds3M_WT36, contrast = c("l3M_WT36", "36", "WT"))
+
+res3F_WT41 = results(dds3F_WT41, contrast = c("l3F_WT41", "41", "WT"))
+res3M_WT41 = results(dds3M_WT41, contrast = c("l3M_WT41", "41", "WT"))
+
+res3F_3641 = results(dds3F_3641, contrast = c("l3F_3641","41", "36"))
+res3M_3641 = results(dds3M_3641, contrast = c("l3M_3641","41", "36"))
+                    
+resF_WT31 = results(ddsF_WT, contrast = c("tpF_WT","3", "1"))
+resF_WT21 = results(ddsF_WT, contrast = c("tpF_WT","2", "1"))
+resF_WT32 = results(ddsF_WT, contrast = c("tpF_WT","3", "2"))
+
+resM_WT31 = results(ddsM_WT, contrast = c("tpM_WT","3","1"))
+resM_WT21 = results(ddsM_WT, contrast = c("tpM_WT","2","1"))
+resM_WT32 = results(ddsM_WT, contrast = c("tpM_WT","3","2"))
+
+resF_TG31 = results(ddsF_TG, contrast = c("tpF_TG","3","1"))
+resF_TG21 = results(ddsF_TG, contrast = c("tpF_TG","2","1"))
+resF_TG32 = results(ddsF_TG, contrast = c("tpF_TG","3","2"))
+
+resM_TG31 = results(ddsM_TG, contrast = c("tpM_TG","3","1"))
+resM_TG21 = results(ddsM_TG, contrast = c("tpM_TG","2","1"))
+resM_TG32 = results(ddsM_TG, contrast = c("tpM_TG","3","2"))
+
+resF_36_31 = results(ddsF_36, contrast = c("tpF_36","3","1"))
+resF_36_21 = results(ddsF_36, contrast = c("tpF_36","2","1"))
+resF_36_32 = results(ddsF_36, contrast = c("tpF_36","3","2"))
+
+resM_36_31 = results(ddsM_36, contrast = c("tpM_36","3","1"))
+resM_36_21 = results(ddsM_36, contrast = c("tpM_36","2","1"))
+resM_36_32 = results(ddsM_36, contrast = c("tpM_36","3","2"))
+
+resF_41_31 = results(ddsF_41, contrast = c("tpF_41","3","1"))
+resF_41_21 = results(ddsF_41, contrast = c("tpF_41","2","1"))
+resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
+
+resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
+resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
+resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
+
+```
+
 
 ## Converting results to dfs, adding MGI,
 entrez and Symbol as columns 
@@ -609,36 +629,6 @@ genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.5, max 
 
 # Visualizations
 
-## Simple XY (difference visualization)
-
-```{r}
-logrbps = log2(1 + rbps)
-```
-
-```{r}
-plot(logrbps$'1FWT_1', logrbps$'1FWT_2', xlim = c(0,20), ylim = c(0,20))
-plot(logrbps$'1FWT_1', logrbps$'1FWT_3', xlim = c(0,20), ylim = c(0,20))
-plot(logrbps$'1FWT_2', logrbps$'1FWT_3', xlim = c(0,20), ylim = c(0,20))
-
-plot(logrbps$'1FWT_1', logrbps$'3M36_1', xlim = c(0,20), ylim = c(0,20))
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
-
-```{r}
-
-
-```
 ## PCA Plots
 
 ```{r}
@@ -822,9 +812,84 @@ seqHeatmap(rl1F_WT41)
 
 ## Plot Counts
 
+## Converting to result objects
+
 ```{r}
 
-plotCounts(res1F_WT36, gene = "Nop58", intgroup = "l1F_WT36")
+res1F_WTG = results(dds1F_WTG, contrast = c("l1F_WTG", "TG", "WT"))
+res1M_WTG = results(dds1M_WTG, contrast = c("l1M_WTG", "TG", "WT"))
+
+res1F_WT36 = results(dds1F_WT36, contrast = c("l1F_WT36", "36", "WT"))
+res1M_WT36 = results(dds1M_WT36, contrast = c("l1M_WT36", "36", "WT"))
+
+res1F_WT41 = results(dds1F_WT41, contrast = c("l1F_WT41", "41", "WT"))
+res1M_WT41 = results(dds1M_WT41, contrast = c("l1M_WT41", "41", "WT"))
+
+res1F_3641 = results(dds1F_3641, contrast = c("l1F_3641", "41", "36"))
+res1M_3641 = results(dds1M_3641, contrast = c("l1M_3641", "41", "36"))
+
+res2F_WTG = results(dds2F_WTG, contrast = c("l2F_WTG", "TG", "WT"))
+res2M_WTG = results(dds2M_WTG, contrast = c("l2M_WTG", "TG", "WT"))
+
+res2F_WT36 = results(dds2F_WT36, contrast = c("l2F_WT36", "36", "WT"))
+res2M_WT36 = results(dds2M_WT36, contrast = c("l2M_WT36", "36", "WT"))
+
+res2F_WT41 = results(dds2F_WT41, contrast = c("l2F_WT41", "41", "WT"))
+res2M_WT41 = results(dds2M_WT41, contrast = c("l2M_WT41", "41", "WT"))
+
+res2F_3641 = results(dds2F_3641, contrast = c("l2F_3641", "41", "36"))
+res2M_3641 = results(dds2M_3641, contrast = c("l2M_3641", "41", "36"))
+
+res3F_WTG = results(dds3F_WTG, contrast = c("l3F_WTG", "TG", "WT"))
+res3M_WTG = results(dds3M_WTG, contrast = c("l3M_WTG", "TG", "WT"))
+
+res3F_WT36 = results(dds3F_WT36, contrast = c("l3F_WT36", "36", "WT"))
+res3M_WT36 = results(dds3M_WT36, contrast = c("l3M_WT36", "36", "WT"))
+
+res3F_WT41 = results(dds3F_WT41, contrast = c("l3F_WT41", "41", "WT"))
+res3M_WT41 = results(dds3M_WT41, contrast = c("l3M_WT41", "41", "WT"))
+
+res3F_3641 = results(dds3F_3641, contrast = c("l3F_3641","41", "36"))
+res3M_3641 = results(dds3M_3641, contrast = c("l3M_3641","41", "36"))
+                    
+resF_WT31 = results(ddsF_WT, contrast = c("tpF_WT","3", "1"))
+resF_WT21 = results(ddsF_WT, contrast = c("tpF_WT","2", "1"))
+resF_WT32 = results(ddsF_WT, contrast = c("tpF_WT","3", "2"))
+
+resM_WT31 = results(ddsM_WT, contrast = c("tpM_WT","3","1"))
+resM_WT21 = results(ddsM_WT, contrast = c("tpM_WT","2","1"))
+resM_WT32 = results(ddsM_WT, contrast = c("tpM_WT","3","2"))
+
+resF_TG31 = results(ddsF_TG, contrast = c("tpF_TG","3","1"))
+resF_TG21 = results(ddsF_TG, contrast = c("tpF_TG","2","1"))
+resF_TG32 = results(ddsF_TG, contrast = c("tpF_TG","3","2"))
+
+resM_TG31 = results(ddsM_TG, contrast = c("tpM_TG","3","1"))
+resM_TG21 = results(ddsM_TG, contrast = c("tpM_TG","2","1"))
+resM_TG32 = results(ddsM_TG, contrast = c("tpM_TG","3","2"))
+
+resF_36_31 = results(ddsF_36, contrast = c("tpF_36","3","1"))
+resF_36_21 = results(ddsF_36, contrast = c("tpF_36","2","1"))
+resF_36_32 = results(ddsF_36, contrast = c("tpF_36","3","2"))
+
+resM_36_31 = results(ddsM_36, contrast = c("tpM_36","3","1"))
+resM_36_21 = results(ddsM_36, contrast = c("tpM_36","2","1"))
+resM_36_32 = results(ddsM_36, contrast = c("tpM_36","3","2"))
+
+resF_41_31 = results(ddsF_41, contrast = c("tpF_41","3","1"))
+resF_41_21 = results(ddsF_41, contrast = c("tpF_41","2","1"))
+resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
+
+resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
+resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
+resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
+
+```
+
+
+```{r}
+
+plotCounts(dds1F_WT36, gene = "1196368", intgroup = "l1F_WT36", main = "Carhsp1")
 
 ```
 
@@ -838,7 +903,7 @@ venn.diagram(
     "M" = genesAll$res1M_WT36,
     "F" = genesAll$res1F_WT36
   ),
-  filename = "t1sex36.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green"),
   alpha = 0.5,
@@ -847,12 +912,14 @@ venn.diagram(
   cat.col = c("red", "green")
 )
 
+
+
 venn.diagram(
   x = list(
     "M" = genesAll$res2M_WT36,
     "F" = genesAll$res2F_WT36
   ),
-  filename = "t2sex36.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green"),
   alpha = 0.5,
@@ -866,7 +933,7 @@ venn.diagram(
     "M" = genesAll$res3M_WT36,
     "F" = genesAll$res3F_WT36
   ),
-  filename = "t3sex36.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green"),
   alpha = 0.5,
@@ -881,7 +948,7 @@ venn.diagram(
     "T2" = genesAll$res2F_WT36,
     "T3" = genesAll$res3F_WT36
   ),
-  filename = "tpF36.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green", "blue"),
   alpha = 0.5,
@@ -896,7 +963,7 @@ venn.diagram(
     "T2" = genesAll$res2M_WT36,
     "T3" = genesAll$res3M_WT36
   ),
-  filename = "tpM36.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green", "blue"),
   alpha = 0.5,
@@ -912,7 +979,7 @@ venn.diagram(
     "M" = genesAll$res1M_WT41,
     "F" = genesAll$res1F_WT41
   ),
-  filename = "t1sex41.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green"),
   alpha = 0.5,
@@ -926,7 +993,7 @@ venn.diagram(
     "M" = genesAll$res2M_WT41,
     "F" = genesAll$res2F_WT41
   ),
-  filename = "t2sex41.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green"),
   alpha = 0.5,
@@ -940,7 +1007,7 @@ venn.diagram(
     "M" = genesAll$res3M_WT41,
     "F" = genesAll$res3F_WT41
   ),
-  filename = "t3sex41.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green"),
   alpha = 0.5,
@@ -955,7 +1022,7 @@ venn.diagram(
     "T2" = genesAll$res2F_WT41,
     "T3" = genesAll$res3F_WT41
   ),
-  filename = "tpF41.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green", "blue"),
   alpha = 0.5,
@@ -970,7 +1037,7 @@ venn.diagram(
     "T2" = genesAll$res2M_WT41,
     "T3" = genesAll$res3M_WT41
   ),
-  filename = "tpM41.png",
+  filename = NULL,
   col = "black",
   fill = c("red", "green", "blue"),
   alpha = 0.5,
