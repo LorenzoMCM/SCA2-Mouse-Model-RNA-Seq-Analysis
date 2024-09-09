@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','readxl','DESeq2','ggplot2'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','readxl','DESeq2','ggplot2', 'VennDiagram'), repos = "http://cran.us.r-project.org" )
 ```
 
 ```{r message=FALSE}
@@ -23,6 +23,7 @@ library(readxl)
 library(DESeq2)
 library(ggplot2)
 library(gplots)
+library(VennDiagram)
 library(pheatmap)
 library(vsn)
 library(dplyr)
@@ -57,7 +58,9 @@ reads = na.omit(reads)
 
 # Importing list of RBPs, omitting NAs
 
-mainPanther = as.data.frame(read_excel('Panther-RNA-ALL.xlsm', col_names = FALSE))
+#mainPanther = as.data.frame(read_excel('rna_met.xlsm', col_names = FALSE))
+
+mainPanther = as.data.frame(read_excel('Panther-RBPs.xlsx', col_names = FALSE))
 
 mainPanther = mainPanther[!is.na(mainPanther)]
 
@@ -79,6 +82,8 @@ rbps = reads[reads$MGI %in% mainPanther,]
 # Naming rows in the rbps object after their MGI ID and removing all columns except those with the counts for each condition
 
 rownames(rbps) = rbps$MGI
+
+#rownames(rbps) = rbps$Gene_Symbol
 
 rbps = rbps[,-c(1,2,3)]
 
@@ -404,6 +409,7 @@ ddsM_36 = DESeq(ddsM_36)
 ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
 ```
+
 ```{r}
 
 ## Filtering for genes read less than 5 times across all samples (Only for histogram visualizations)
@@ -512,16 +518,146 @@ rlM_41 = rlog(ddsM_41)
 
 ```
 
+## Converting results to dfs, adding MGI,
+entrez and Symbol as columns 
+
+```{r message=FALSE}
+
+# Making a list out of all results objects
+
+allObj = ls()  
+
+reObj = allObj[grep("^res", allObj)]
+
+reList = mget(reObj)
+
+# Adding back MGI, RefSeq ID and symbol columns to all results objects
+
+reList = lapply(reList, function(res) {
+
+  df = as.data.frame(res)
+
+  df$MGI = rownames(df)
+  
+  df = merge(df, reads[, c("MGI", "Gene_ID", "Gene_Symbol")], by = "MGI", all.x = TRUE)
+  
+  rownames(df) <- NULL
+  
+  return(df)
+})
+```
+
+## Function for selecting genes according to LFC, padj and key
+
+```{r}
+
+pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+  
+  # Filter rows based on log2FoldChange and padj
+  filtered_x <- x[(x$log2FoldChange > lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
+  
+  # Sort the filtered rows by padj value
+  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  
+  # Handle max condition. If a number, returned DF has that many lines
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
+  
+  return(sorted_x[[key]])
+}
+
+ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+
+  filtered_x <- x[(x$log2FoldChange < lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
+  
+  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
+  
+  return(sorted_x[[key]])
+}
+
+degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+  
+  filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
+  
+  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
+  
+  return(sorted_x[[key]])
+}
+
+```
+
+## Applying to all results
+
+```{r}
+
+genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.5, max = NULL)
+
+genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.5, max = NULL)
+
+genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.5, max = NULL)
+
+```
+
+# Visualizations
+
+## Simple XY (difference visualization)
+
+```{r}
+logrbps = log2(1 + rbps)
+```
+
+```{r}
+plot(logrbps$'1FWT_1', logrbps$'1FWT_2', xlim = c(0,20), ylim = c(0,20))
+plot(logrbps$'1FWT_1', logrbps$'1FWT_3', xlim = c(0,20), ylim = c(0,20))
+plot(logrbps$'1FWT_2', logrbps$'1FWT_3', xlim = c(0,20), ylim = c(0,20))
+
+plot(logrbps$'1FWT_1', logrbps$'3M36_1', xlim = c(0,20), ylim = c(0,20))
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
+## PCA Plots
+
 ```{r}
 plotPCA(rl1F_WTG, intgroup= c("l1F_WTG"))
 plotPCA(rl1M_WTG, intgroup= c("l1M_WTG"))
 
+```
+
+```{r}
 plotPCA(rl1F_WT36, intgroup = c("l1F_WT36"))
 plotPCA(rl1M_WT36, intgroup = c("l1M_WT36"))
+```
 
+```{r}
 plotPCA(rl1F_WT41, intgroup = c("l1F_WT41"))
 plotPCA(rl1M_WT41, intgroup = c("l1M_WT41"))
+```
 
+```{r}
 plotPCA(rl1F_3641, intgroup = c("l1F_3641"))
 plotPCA(rl1M_3641, intgroup = c("l1M_3641"))
 ```
@@ -529,13 +665,19 @@ plotPCA(rl1M_3641, intgroup = c("l1M_3641"))
 ```{r}
 plotPCA(rl2F_WTG, intgroup= c("l2F_WTG"))
 plotPCA(rl2M_WTG, intgroup= c("l2M_WTG"))
+```
 
+```{r}
 plotPCA(rl2F_WT36, intgroup = c("l2F_WT36"))
 plotPCA(rl2M_WT36, intgroup = c("l2M_WT36"))
+```
 
+```{r}
 plotPCA(rl2F_WT41, intgroup = c("l2F_WT41"))
 plotPCA(rl2M_WT41, intgroup = c("l2M_WT41"))
+```
 
+```{r}
 plotPCA(rl2F_3641, intgroup = c("l2F_3641"))
 plotPCA(rl2M_3641, intgroup = c("l2M_3641"))
 ```
@@ -543,13 +685,19 @@ plotPCA(rl2M_3641, intgroup = c("l2M_3641"))
 ```{r}
 plotPCA(rl3F_WTG, intgroup= c("l3F_WTG"))
 plotPCA(rl3M_WTG, intgroup= c("l3M_WTG"))
+```
 
+```{r}
 plotPCA(rl3F_WT36, intgroup = c("l3F_WT36"))
 plotPCA(rl3M_WT36, intgroup = c("l3M_WT36"))
+```
 
+```{r}
 plotPCA(rl3F_WT41, intgroup = c("l3F_WT41"))
 plotPCA(rl3M_WT41, intgroup = c("l3M_WT41"))
+```
 
+```{r}
 plotPCA(rl3F_3641, intgroup = c("l3F_3641"))
 plotPCA(rl3M_3641, intgroup = c("l3M_3641"))
 ```
@@ -557,17 +705,25 @@ plotPCA(rl3M_3641, intgroup = c("l3M_3641"))
 ```{r}
 plotPCA(rlF_WT, intgroup = c("tpF_WT"))
 plotPCA(rlM_WT, intgroup = c("tpM_WT"))
+```
 
+```{r}
 plotPCA(rlF_36, intgroup = c("tpF_36"))
 plotPCA(rlM_36, intgroup = c("tpM_36"))
+```
 
+```{r}
 plotPCA(rlF_41, intgroup = c("tpF_41"))
 plotPCA(rlM_41, intgroup = c("tpM_41"))
+```
 
+```{r}
 plotPCA(rlF_TG, intgroup = c("tpF_TG"))
 plotPCA(rlM_TG, intgroup = c("tpM_TG"))
-
 ```
+
+## Heatmaps
+
 
 ```{r}
 
@@ -633,7 +789,7 @@ seqHeatmap = function(x,n = 50){
 ```
 
 ```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1F_WTG, n = 200)
+seqHeatmap(rl1F_WTG, n = 100)
 ```
 
 ```{r fig.height=8, fig.width=12}
@@ -664,20 +820,164 @@ seqHeatmap(rl1F_WT36)
 seqHeatmap(rl1F_WT41)
 ```
 
-```{r fig.height=8, fig.width=12}
-seqHeatmap()
-```
+## Plot Counts
 
 ```{r}
 
-```
-
-```{r}
+plotCounts(res1F_WT36, gene = "Nop58", intgroup = "l1F_WT36")
 
 ```
 
+
+## Venn Diagrams
+
 ```{r}
 
+venn.diagram(
+  x = list(
+    "M" = genesAll$res1M_WT36,
+    "F" = genesAll$res1F_WT36
+  ),
+  filename = "t1sex36.png",
+  col = "black",
+  fill = c("red", "green"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green")
+)
+
+venn.diagram(
+  x = list(
+    "M" = genesAll$res2M_WT36,
+    "F" = genesAll$res2F_WT36
+  ),
+  filename = "t2sex36.png",
+  col = "black",
+  fill = c("red", "green"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green")
+)
+
+venn.diagram(
+  x = list(
+    "M" = genesAll$res3M_WT36,
+    "F" = genesAll$res3F_WT36
+  ),
+  filename = "t3sex36.png",
+  col = "black",
+  fill = c("red", "green"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green")
+)
+
+venn.diagram(
+  x = list(
+    "T1" = genesAll$res1F_WT36,
+    "T2" = genesAll$res2F_WT36,
+    "T3" = genesAll$res3F_WT36
+  ),
+  filename = "tpF36.png",
+  col = "black",
+  fill = c("red", "green", "blue"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green", "blue")
+)
+
+venn.diagram(
+  x = list(
+    "T1" = genesAll$res1M_WT36,
+    "T2" = genesAll$res2M_WT36,
+    "T3" = genesAll$res3M_WT36
+  ),
+  filename = "tpM36.png",
+  col = "black",
+  fill = c("red", "green", "blue"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green", "blue")
+)
+```
+
+```{r}
+venn.diagram(
+  x = list(
+    "M" = genesAll$res1M_WT41,
+    "F" = genesAll$res1F_WT41
+  ),
+  filename = "t1sex41.png",
+  col = "black",
+  fill = c("red", "green"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green")
+)
+
+venn.diagram(
+  x = list(
+    "M" = genesAll$res2M_WT41,
+    "F" = genesAll$res2F_WT41
+  ),
+  filename = "t2sex41.png",
+  col = "black",
+  fill = c("red", "green"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green")
+)
+
+venn.diagram(
+  x = list(
+    "M" = genesAll$res3M_WT41,
+    "F" = genesAll$res3F_WT41
+  ),
+  filename = "t3sex41.png",
+  col = "black",
+  fill = c("red", "green"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green")
+)
+
+venn.diagram(
+  x = list(
+    "T1" = genesAll$res1F_WT41,
+    "T2" = genesAll$res2F_WT41,
+    "T3" = genesAll$res3F_WT41
+  ),
+  filename = "tpF41.png",
+  col = "black",
+  fill = c("red", "green", "blue"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green", "blue")
+)
+
+venn.diagram(
+  x = list(
+    "T1" = genesAll$res1M_WT41,
+    "T2" = genesAll$res2M_WT41,
+    "T3" = genesAll$res3M_WT41
+  ),
+  filename = "tpM41.png",
+  col = "black",
+  fill = c("red", "green", "blue"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.5,
+  cat.col = c("red", "green", "blue")
+)
 ```
 
 ```{r}

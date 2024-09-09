@@ -1,0 +1,429 @@
+---
+title: "WGCNA"
+author: "Lorenzo.MCM"
+date: "2024-06-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Initial Setup
+
+## Installing and loading packages.
+
+```{r eval=FALSE}
+
+install.packages(c('dplyr','biomaRt','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
+```
+
+```{r eval=FALSE}
+BiocManager::install(c('DESeq2', 'AnnotationDbi', 'org.Mm.eg.db', 'apeglm', 'ReportingTools', 'clusterProfiler'))
+```
+
+```{r message=FALSE}
+library(readxl)
+library(DESeq2)
+library(vsn)
+library(Glimma)
+library(regionReport)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(AnnotationDbi)
+library(biomaRt)
+library(stringr)
+library(dplyr)
+library(CorLevelPlot)
+```
+
+## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with Gene list
+
+```{r message=FALSE, warning=FALSE}
+
+# Setting Working Directory 
+
+#setwd("your/file/path")
+setwd("C:/Users/Lorenzo/Documents/MESTRADO/R/RNAbps")
+
+# Importing main reads file
+
+data = as.data.frame(read_excel("Reads_genes.xlsx"))
+
+# Keeping only the columns with MGI, RefSeq ID and Gene symbols + raw counts, omitting NAs 
+
+reads = data %>% select(MGI, Gene_ID, Gene_Symbol, contains("Count"))
+
+reads = as.data.frame(reads)
+
+reads = na.omit(reads)
+
+rbps = reads
+
+```
+
+## Naming conditions and final set up of rbps object
+
+```{r message=FALSE, warning=FALSE}
+
+# Naming rows in the rbps object after their MGI ID and removing all columns except those with the counts for each condition
+
+rownames(rbps) = rbps$Gene_Symbol
+
+rbps = rbps[,-c(1,2,3)]
+
+# Naming raw counts columns after their conditions, based on an external file
+
+colnames(rbps) = (read_excel("conditions.xlsx", col_names = FALSE))[1,]
+
+# For analyzing C36
+rbps = rbps[,1:36]
+
+# For analyzing c41
+#rbps = rbps[,c(1:18, 37:54)]
+```
+
+```{r}
+library(WGCNA)
+allowWGCNAThreads()
+gsg = t(rbps)
+
+gsg = goodSamplesGenes(t(rbps))
+```
+
+```{r}
+rbps = rbps[gsg$goodGenes == TRUE,]
+```
+
+```{r, fig.width=10}
+htree = hclust(dist(t(rbps)), method ="average")
+plot(htree)
+```
+
+```{r, fig.height=10, fig.width=10}
+pca = prcomp(t(rbps))
+pca.data = pca$x
+
+pca.var = pca$sdev^2
+pca.var.percent = round(pca.var/sum(pca.var)*100,digits = 2)
+
+library(ggplot2)
+
+ggplot(pca.data, aes(PC1, PC2)) +
+  #geom_point() +
+  geom_text(label = rownames(pca.data)) +
+  labs(x = paste0('PCA1: ', pca.var.percent[1], '%'),
+       y = paste0('PCA2: ', pca.var.percent[2], '%'))
+```
+
+```{r message=FALSE, warning=FALSE}
+
+```
+
+## setting up dfs for DESeq design 
+```{r}
+# for 36
+
+tp = c("1", "1", "1", "1", "1", "1", "2", "2", "2", "2", "2", "2", "3", "3", "3", "3", "3", "3", "1", "1", "1", "1", "1", "1", "2", "2", "2", "2", "2", "2", "3", "3", "3", "3", "3", "3")
+
+colony = c("WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36")
+
+sex = c("F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "F", "M", "M", "F", "F", "F", "M", "M", "M", "F", "M", "M", "M", "M", "M")
+
+#for 41
+
+#tp = c("1", "1", "1", "1", "1", "1", "2", "2", "2", "2", "2", "2", "3", "3", "3", "3", "3", "3", "1", "1", "1", "1", "1", "1", "2", "2", "2", "2", "2", "2", "3", "3", "3", "3", "3", "3")
+
+#colony = c("WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41")
+
+#sex = c("F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "M", "M", "M", "M")
+
+#for all
+
+#tp = c("1", "1", "1", "1", "1", "1", "2", "2", "2", "2", "2", "2", "3", "3", "3", "3", "3", "3", "1", "1", "1", "1", "1", "1", "2", "2", "2", "2", "2", "2", "3", "3", "3", "3", "3", "3", "1", "1", "1", "1", "1", "1", "2", "2", "2", "2", "2", "2", "3", "3", "3", "3", "3", "3")
+
+#colony = c("WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "WT", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "36", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41", "41")
+
+#sex = c("F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "F", "M", "M", "F", "F", "F", "M", "M", "M", "F", "M", "M", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "F", "M", "M", "M", "F", "F", "M", "M", "M", "M")
+
+nameCond = (read_excel("conditions.xlsx", col_names = FALSE))
+
+nameCond = nameCond[,1:36]
+
+#nameCond = nameCond[,c(1:18, 37:54)] 
+  
+columnData = as.data.frame(cbind(rownames(nameCond[,1]),colony, tp, sex))
+columnData = columnData[,-1]
+rownames(columnData) = nameCond[1,]
+```
+
+## Conversion into DESeqDataSets
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+dds = DESeqDataSetFromMatrix(countData = rbps,
+                            colData = columnData,
+                            design = ~1)
+
+```
+
+```{r}
+# all
+#dds = dds[rowSums(counts(dds) >= 15) >= 41]
+
+# 36,41
+dds = dds[rowSums(counts(dds) >= 15) >= 27]
+```
+
+```{r}
+
+## variance stabilization
+dds_norm = vst(dds)
+```
+
+```{r}
+norm.counts = assay(dds_norm) %>% t()
+
+```
+
+## network const
+
+```{r}
+power = c(c(1:10), seq(from = 12, to = 50, by = 2))
+```
+
+```{r}
+sft = pickSoftThreshold(norm.counts,
+                        powerVector = power,
+                        networkType = 'signed',
+                        verbose = 5)
+
+sft.data = sft$fitIndices
+```
+
+```{r}
+a1 = ggplot(sft.data, aes(Power, SFT.R.sq, label = Power))+
+  geom_point() +
+  geom_text(nudge_y = 0.1) +
+  geom_hline(yintercept = 0.8, color = 'red') +
+  labs(x = 'Power', y = 'Scale free topology model fit, signed R^2') +
+  theme_classic()
+
+a2 = ggplot(sft.data, aes(Power,mean.k., label = Power))+
+  geom_point() +
+  geom_text(nudge_y = 0.1)+
+  labs(x= 'Power', y = 'Mean Connectivity') +
+  theme_classic()
+
+library(gridExtra)
+
+grid.arrange(a1, a2, nrow = 2)
+```
+
+```{r}
+norm.counts[] = sapply(norm.counts, as.numeric)
+
+#all
+#soft_power = 24
+
+#36
+soft_power=30
+
+#41
+#soft_power = 26
+
+temp_cor = cor
+cor = WGCNA::cor
+```
+
+```{r}
+
+bwnet = blockwiseModules(norm.counts,
+                 maxBlockSize = 16000,
+                 TOMType = 'signed',
+                 power = soft_power,
+                 mergeCutHeight = 0.25,
+                 numericLabels = FALSE,
+                 randomSeed = 1234,
+                 verbose = 3)
+
+```
+
+```{r}
+cor = temp_cor
+module_eigengenes = bwnet$MEs
+```
+
+```{r, fig.width=10}
+plotDendroAndColors(bwnet$dendrograms[[1]], cbind(bwnet$unmergedColors,bwnet$colors),
+                    c('unmerged', 'merged'),
+                    dendroLabels = FALSE,
+                    addGuide = TRUE,
+                    hang = 0.03,
+                    guideHang = 0.05)
+```
+
+```{r}
+traits = columnData %>% 
+  mutate(sex_bin = ifelse(grepl('F', sex), 1, 0))
+```
+
+```{r}
+#columnData = factor(columnData$colony, levels = c("WT", "36", "41"))
+
+#41
+
+#traits1 = columnData %>% 
+#  mutate(c41_bin = ifelse(grepl('41', colony), 1, 0))
+#
+#
+#traits$c41_bin = traits1$c41_bin
+#
+#traits1 = columnData %>% 
+#  mutate(tp1 = ifelse(grepl('1', tp), 1, 0))
+
+#traits$tp1_bin = traits1$tp1
+
+#traits1 = columnData %>% 
+#  mutate(tp2 = ifelse(grepl('2', tp), 1, 0))
+#
+#traits$tp2_bin = traits1$tp2
+#
+#traits1 = columnData %>% 
+#  mutate(tp3 = ifelse(grepl('3', tp), 1, 0))
+
+#traits$tp3_bin = traits1$tp3
+#
+#traits$F1_41 = ifelse(traits$sex_bin == 1 & traits$c41_bin == 1 & traits$tp1_bin == 1, 1, 0)
+#traits$F2_41 = ifelse(traits$sex_bin == 1 & traits$c41_bin == 1 & traits$tp2_bin == 1, 1, 0)
+#traits$F3_41 = ifelse(traits$sex_bin == 1 & traits$c41_bin == 1 & traits$tp3_bin == 1, 1, 0)
+#
+#traits$M1_41 = ifelse(traits$sex_bin == 0 & traits$c41_bin == 1 & traits$tp1_bin == 1, 1, 0)
+#traits$M2_41 = ifelse(traits$sex_bin == 0 & traits$c41_bin == 1 & traits$tp2_bin == 1, 1, 0)
+#traits$M3_41 = ifelse(traits$sex_bin == 0 & traits$c41_bin == 1 & traits$tp3_bin == 1, 1, 0)
+
+#for 36
+
+traits1 = columnData %>% 
+  mutate(c36_bin = ifelse(grepl('36', colony), 1, 0))
+
+
+traits$c36_bin = traits1$c36_bin
+
+traits1 = columnData %>% 
+  mutate(tp1 = ifelse(grepl('1', tp), 1, 0))
+
+traits$tp1_bin = traits1$tp1
+
+traits1 = columnData %>% 
+  mutate(tp2 = ifelse(grepl('2', tp), 1, 0))
+
+traits$tp2_bin = traits1$tp2
+
+traits1 = columnData %>% 
+  mutate(tp3 = ifelse(grepl('3', tp), 1, 0))
+
+traits$tp3_bin = traits1$tp3
+
+traits$F1_36 = ifelse(traits$sex_bin == 1 & traits$c36_bin == 1 & traits$tp1_bin == 1, 1, 0)
+traits$F2_36 = ifelse(traits$sex_bin == 1 & traits$c36_bin == 1 & traits$tp2_bin == 1, 1, 0)
+traits$F3_36 = ifelse(traits$sex_bin == 1 & traits$c36_bin == 1 & traits$tp3_bin == 1, 1, 0)
+
+traits$M1_36 = ifelse(traits$sex_bin == 0 & traits$c36_bin == 1 & traits$tp1_bin == 1, 1, 0)
+traits$M2_36 = ifelse(traits$sex_bin == 0 & traits$c36_bin == 1 & traits$tp2_bin == 1, 1, 0)
+traits$M3_36 = ifelse(traits$sex_bin == 0 & traits$c36_bin == 1 & traits$tp3_bin == 1, 1, 0)
+
+rm(traits1)
+```
+
+```{r}
+nSamples = nrow(norm.counts)
+nGenes = ncol(norm.counts)
+
+module.trait.corr = cor(module_eigengenes, traits, use = 'p')
+module.trait.pvals = corPvalueStudent(module.trait.corr, nSamples)
+```
+
+```{r, fig.width= 15}
+heatmap.data = merge(module_eigengenes, traits, by = 'row.names')
+
+CorLevelPlot(heatmap.data,
+             x = names(heatmap.data)[c(19:20,24:29)],
+             y = names(heatmap.data) [2:15],
+             col = c('blue1', 'skyblue', 'white', 'pink', 'red'))
+```
+
+## Hub Genes
+
+```{r}
+moduleColors = bwnet$colors
+
+moduleColorsDF = as.data.frame(moduleColors)
+
+geneTree = bwnet$dendrograms[[1]]
+```
+
+```{r}
+adjacency_matrix = adjacency(norm.counts, power = soft_power)
+
+TOM = TOMsimilarity(adjacency_matrix)
+```
+
+```{r}
+kWithin = intramodularConnectivity(adjacency_matrix, moduleColors)
+```
+
+```{r}
+hubGenes = function(color, top = NULL){
+  
+  modules_genes = which(moduleColors == color)
+  
+  kWithin_module = kWithin[modules_genes,]
+  
+  kWithin_sorted = kWithin_module[order(-kWithin_module$kWithin),]
+  
+  if(is.null(top) == FALSE)
+  {return(as.data.frame(rownames(kWithin_sorted)[1:top]))}
+  else(return(as.data.frame(rownames(kWithin_sorted))))
+}
+```
+
+```{r}
+write.csv(hubGenes(color = 'brown'), file = "brownMod.csv")
+
+write.csv(hubGenes(color = 'grey'), file = "greyMod.csv")
+
+write.csv(hubGenes(color = 'green'), file = "greenMod.csv")
+
+write.csv(hubGenes(color = 'black'), file = "blackMod.csv")
+
+write.csv(hubGenes(color = 'blue'), file = "blueMod.csv")
+
+write.csv(hubGenes(color = 'salmon'), file = "salmonMod.csv")
+
+write.csv(hubGenes(color = 'red'), file = "redMod.csv")
+
+write.csv(hubGenes(color = 'greenyellow'), file = "greenyellowMod.csv")
+
+write.csv(hubGenes(color = 'turquoise'), file = "turquoiseMod.csv")
+
+write.csv(hubGenes(color = 'pink'), file = "pinkMod.csv")
+
+write.csv(hubGenes(color = 'magenta'), file = "magentaMod.csv")
+
+write.csv(hubGenes(color = 'yellow'), file = "yellowMod.csv")
+
+write.csv(hubGenes(color = 'tan'), file = "tanMod.csv")
+
+write.csv(hubGenes(color = 'purple'), file = "purpleMod.csv")
+```
+
+```{r}
+exportNetworkToVisANT(adjMat = adjacency_matrix, file = "WGCNA_36_vysant.txt")
+```
+
+```{r}
+
+exportNetworkToCytoscape(adjMat = adjacency_matrix, edgeFile = "WGCNA_36_edge", nodeFile = "WGCNA_36_node")
+```
+
