@@ -15,19 +15,16 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','biomaRt','readxl','DESeq2','ggplot2'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','biomaRt','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
 ```
 
 ```{r eval=FALSE}
-BiocManager::install(c('DESeq2', 'AnnotationDbi', 'vsn', 'org.Mm.eg.db', 'apeglm', 'ReportingTools', 'clusterProfiler' , 'select'))
+BiocManager::install(c('DESeq2', 'AnnotationDbi', 'org.Mm.eg.db', 'apeglm', 'ReportingTools', 'clusterProfiler'))
 ```
 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
-library(ggplot2)
-library(gplots)
-library(pheatmap)
 library(vsn)
 library(Glimma)
 library(regionReport)
@@ -39,13 +36,14 @@ library(stringr)
 library(dplyr)
 ```
 
-## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with panther-db
+## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with Gene list
 
 ```{r message=FALSE, warning=FALSE}
 
 # Setting Working Directory 
 
-setwd("your/file/path")
+#setwd("your/file/path")
+setwd("C:/Users/Lorenzo/Documents/MESTRADO/R/RNAbps")
 
 # Importing main reads file
 
@@ -134,7 +132,9 @@ MSGP_ID = unique(MSGP_ID)
 
 # Importing list of RBPs, omitting NAs
 
-mainPanther = as.data.frame(read_excel('Panther-RNA-ALL.xlsm', col_names = FALSE))
+#mainPanther = as.data.frame(read_excel('rna_met.xlsx', col_names = FALSE))
+
+mainPanther = as.data.frame(read_excel('Panther-RBPs.xlsx', col_names = FALSE))
 
 mainPanther = mainPanther[!is.na(mainPanther)]
 
@@ -142,10 +142,10 @@ mainPanther = mainPanther[!is.na(mainPanther)]
 #(alternatively comment this first line and uncomment the last one to analyze all genes)
 
 #comment this for analyzing all genes (uncomment last line)
-#rbps = reads[reads$MGI %in% mainPanther,]
+rbps = reads[reads$MGI %in% mainPanther,]
 
 #comment this for analyzing only rbps (uncomment previous line) 
-rbps = reads
+#rbps = reads
 
 ```
 
@@ -429,9 +429,9 @@ ddsM_41 = DESeqDataSetFromMatrix(countData = rbpsM_41,colData = cM_41,
                                 design = ~tpM_41)
 ```
 
-## Running DESeq
+## Running DESeq analysis
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE}
 
 dds1F_WTG = DESeq(dds1F_WTG)
 dds1M_WTG = DESeq(dds1M_WTG)
@@ -555,6 +555,7 @@ resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
 resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
 resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
 resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
+
 ```
 
 ## Converting results to dfs, adding MGI,
@@ -584,9 +585,11 @@ reList = lapply(reList, function(res) {
   
   return(df)
 })
+
+colonies = list(reList$res1F_WT36, reList$res2F_WT36, reList$res3F_WT36, reList$res1M_WT36, reList$res2M_WT36, reList$res2M_WT36, reList$res1F_WT41, reList$res2F_WT41, reList$res3F_WT41, reList$res1M_WT41, reList$res2M_WT41, reList$res2M_WT41)
 ```
 
-## Function for selecting genes according to LFC, padj and key
+## Function for selecting genes according to LFC, padj value and key
 
 ```{r}
 
@@ -638,11 +641,11 @@ degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "G
 
 ```{r}
 
-genespAll = lapply(reList, pdegenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
+genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.5, max = NULL)
 
-genesnAll = lapply(reList, ndegenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
+genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.5, max = NULL)
 
-genesAll = lapply(reList, degenes, lfcThreshold = 1, padjThreshold = 0.1, max = NULL)
+genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.5, max = NULL)
 
 ```
 
@@ -650,334 +653,389 @@ genesAll = lapply(reList, degenes, lfcThreshold = 1, padjThreshold = 0.1, max = 
 
 ```{r message=FALSE, warning=FALSE}
 
+outputTidy = function(x, title) {
 
-# Function for replacing repeats for "NA"
-replace_repeats_with_na <- function(x) {
-  duplicated_elements <- duplicated(x)
-  x[duplicated_elements] <- NA
-  return(x)
+  max_length = max(sapply(x, length))
+  
+  padded_lists = lapply(x, function(y) {
+    length(y) = max_length  
+    return(y)
+  })
+  
+  # Convert the list of lists into a data frame
+  df = as.data.frame(padded_lists)
+  
+  # Step 3: Write the data frame to a CSV file
+  write.csv(df, title, row.names = FALSE)
+  
+  # Return the data frame (optional, for checking)
+  return(df)
 }
 
-
-# Function for tidying up output
-outputTidy = function(x, title = "output.csv"){
-  
-  df = as.data.frame(do.call(rbind, x))
-  
-  df = as.data.frame(t(apply(df, 1, replace_repeats_with_na)))
-  
-  df = as.data.frame(t(df))
-  
-  write.csv(df, file = title)
-}
-
-outputTidy(genesAll, title = "DEG_all.csv")
-
-outputTidy(genespAll,title = "DEG_P_all.csv")
+outputTidy(genesAll, "DEG_rbps.csv")
+outputTidy(genespAll, "DEG_P_rbps.csv")
+outputTidy(genesnAll, "DEG_N_rbps.csv")
 
 #When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
 
-```
-
-# KEGG & GO Pathway Analysis
-
-```{r message=FALSE, warning=FALSE}
-library(pathview)
-library(gage)
-library(gageData)
-library(limma)
-
-# Importing data for GO path analysis and subsetting according to the kind of analysis needed, same with KEGG
-
-data("go.sets.mm")
-data("go.subs.mm")
-data("kegg.sets.mm")
-data("sigmet.idx.mm")
-
-gobpsets = go.sets.mm[go.subs.mm$BP] 
-goccsets = go.sets.mm[go.subs.mm$CC]
-gomfsets = go.sets.mm[go.subs.mm$MF]
-
-kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
-
-# Df with names of KEGG pathway names, important for function ahead
-
-KEGGpathNames = getKEGGPathwayNames(species.KEGG = "mmu")
 
 ```
+
+
+## Misc.
 
 ```{r}
+medianpLFC = function(x){
+  
+  x = x[(x$log2FoldChange > 0) & (x$padj < 0.5),]
+  #x = x[(x$log2FoldChange > 0.5) & (x$padj < 0.5),]
+  
+  y = median(x$log2FoldChange, na.rm = TRUE)
+  
+  return(y)
+}
 
-goPathAnal = function(x, y = gobpsets){
-  
-  # Extract and name fold changes
-  foldchanges = x$log2FoldChange
-  names(foldchanges) = x$Gene_ID
-  
-  # GO Pathway analysis
-  gobpres = gage(exprs = foldchanges, gsets = y, same.dir = TRUE)
-  
-  return(gobpres)
-} 
+mediannLFC = function(x){
 
-# Function for KEGG pathways analysis, if output == TRUE it outputs images of the relevant pathways with highlighted DEGs
-
-keggPathAnal = function(x, top = 20, output = FALSE) {
-
-  # Extract and name fold changes
-  foldchanges = x$log2FoldChange
-  names(foldchanges) = x$Gene_ID
+  x = x[(x$log2FoldChange < 0) & (x$padj < 0.5),]    
+  #x = x[(x$log2FoldChange < -0.5) & (x$padj < 0.5),]
   
-  # KEGG pathway analysis
-  keggres = gage(exprs = foldchanges, gsets = kegg.sets.mm, same.dir = TRUE)
+  y = median(x$log2FoldChange, na.rm = TRUE)
   
-  # Select top pathways
-  pathways = data.frame(id = rownames(keggres$less), keggres$less) %>%
-    as_tibble() %>%
-    filter(row_number() <= top) %>%
-    .$id %>% 
-    as.character()
-  
-  # ID variables with only first 8 characters
-  keggIDs = substr(pathways, start = 1, stop = 8)
-  
-  # Handle output argument
-  if (output == TRUE){
-  
-  # Create new directory with the modified name of the input object `x`
-  output_dir = paste0(substring(as.character(deparse(substitute(x))), 8))
-  if (!dir.exists(output_dir)) {
-    dir.create(output_dir)
-  }
-  
-  # Run pathview and specify output directory
-  sapply(keggIDs, function(pid) {
-    tryCatch({
-      pathview(gene.data = foldchanges, pathway.id = pid, species = "mmu", kegg.dir = "./KEGG_Pathways")
-    }, error = function(e) {
-      message("Error processing pathway ID: ", pid)
-      message("Error message: ", e$message)
-    })
-  })
-  
-  # Return a df with the names of top 20 pathways, for easy Rmd visualization
-  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
-  
-  return(matching_pathways)
-  
-  # Files still get output straight to the WD. Have to manually move output files to generated folder.
-  
-  }
-  
-  # When output FALSE just returns df with the name of top pathways
-  else {
-  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
-  
-  return(matching_pathways)
-  }
+  return(y)
 }
 ```
 
-## Comparing WT and TG mice
-### WT v All TG
 ```{r}
-keggPathAnal(reList$res1F_WTG)
+
+T1F_WT36 = medianpLFC(reList$res1F_WT36)
+
+T2F_WT36 = medianpLFC(reList$res2F_WT36)
+
+T3F_WT36 = medianpLFC(reList$res3F_WT36)
+
+T1M_WT36 = medianpLFC(reList$res1M_WT36)
+
+T2M_WT36 = medianpLFC(reList$res2M_WT36)
+
+T3M_WT36 = medianpLFC(reList$res3M_WT36)
+
+medPlfc36 = c(T1F_WT36, T2F_WT36, T3F_WT36, T1M_WT36, T2M_WT36, T3M_WT36)
+
+barplot(medPlfc36, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Median Expression Log Fold Change for L36 PDEs", ylab = "Median Expression Log Fold Change")
 ```
 
 ```{r}
-keggPathAnal(reList$res1M_WTG)
+T1F_WT41 = medianpLFC(reList$res1F_WT41)
+
+T2F_WT41 = medianpLFC(reList$res2F_WT41)
+
+T3F_WT41 = medianpLFC(reList$res3F_WT41)
+
+T1M_WT41 = medianpLFC(reList$res1M_WT41)
+
+T2M_WT41 = medianpLFC(reList$res2M_WT41)
+
+T3M_WT41 = medianpLFC(reList$res3M_WT41)
+
+medPlfc41 = c(T1F_WT41, T2F_WT41, T3F_WT41, T1M_WT41, T2M_WT41, T3M_WT41)
+
+barplot(medPlfc41, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Median Expression Log Fold Change for L41 PDEs", ylab = "Average Expression Log Fold Change")
 ```
 
 ```{r}
-keggPathAnal(reList$res2F_WTG)
-```
+T1F_WT36 = mediannLFC(reList$res1F_WT36)
 
-```{r}
-keggPathAnal(reList$res2M_WTG)
-```
+T2F_WT36 = mediannLFC(reList$res2F_WT36)
 
-```{r}
-keggPathAnal(reList$res3F_WTG)
-```
+T3F_WT36 = mediannLFC(reList$res3F_WT36)
 
-```{r}
-keggPathAnal(reList$res3M_WTG)
-```
+T1M_WT36 = mediannLFC(reList$res1M_WT36)
 
-### WT v 36
+T2M_WT36 = mediannLFC(reList$res2M_WT36)
 
-```{r}
-keggPathAnal(reList$res1F_WT36)
-```
+T3M_WT36 = mediannLFC(reList$res3M_WT36)
 
-```{r}
-keggPathAnal(reList$res1M_WT36, output = TRUE)
-```
+medNlfc36 = c(T1F_WT36, T2F_WT36, T3F_WT36, T1M_WT36, T2M_WT36, T3M_WT36)
 
-```{r}
-keggPathAnal(reList$res2F_WT36)
-```
-
-```{r}
-keggPathAnal(reList$res2M_WT36)
-```
-
-```{r}
-keggPathAnal(reList$res3F_WT36)
-```
-
-```{r}
-keggPathAnal(reList$res3M_WT36)
-```
-
-### WT v 41
-
-```{r}
-keggPathAnal(reList$res1F_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res1M_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res2F_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res2M_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res3F_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res3M_WT41, output = TRUE)
-```
-
-## Comparing TG lines
-
-```{r}
-keggPathAnal(reList$res1F_3641)
-```
-
-```{r}
-keggPathAnal(reList$res1M_3641)
-```
-
-```{r}
-keggPathAnal(reList$res2F_3641)
-```
-
-```{r}
-keggPathAnal(reList$res2M_3641)
-```
-
-```{r}
-keggPathAnal(reList$res3F_3641)
-```
-
-```{r}
-keggPathAnal(reList$res3M_3641)
-```
-
-## Comparing Timepoints
-
-### All TG
-
-```{r}
-keggPathAnal(reList$resF_TG21)
-```
-```{r}
-keggPathAnal(reList$resM_TG21)
-```
-
-```{r}
-keggPathAnal(reList$resF_TG31)
-```
-
-```{r}
-keggPathAnal(reList$resM_TG31)
-```
-
-```{r}
-keggPathAnal(reList$resF_TG32)
-```
-
-```{r}
-keggPathAnal(reList$resM_TG32)
+barplot(medNlfc36, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Median Expression Log Fold Change for L36 NDEs", ylab = "Median Expression Log Fold Change")
 ```
 
 
-### 36
-
 ```{r}
-keggPathAnal(reList$resF_36_21)
+T1F_WT41 = mediannLFC(reList$res1F_WT41)
+
+T2F_WT41 = mediannLFC(reList$res2F_WT41)
+
+T3F_WT41 = mediannLFC(reList$res3F_WT41)
+
+T1M_WT41 = mediannLFC(reList$res1M_WT41)
+
+T2M_WT41 = mediannLFC(reList$res2M_WT41)
+
+T3M_WT41 = mediannLFC(reList$res3M_WT41)
+
+medNlfc41 = c(T1F_WT41, T2F_WT41, T3F_WT41, T1M_WT41, T2M_WT41, T3M_WT41)
+
+barplot(medNlfc41, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Average Expression Log Fold Change for L41 NDEs", ylab = "Median Expression Log Fold Change")
 ```
 
 ```{r}
-keggPathAnal(reList$resM_36_21,output)
+DEGplot = function(x){
+  
+  y = x[x$log2FoldChange > 0.5 & x$padj < 0.5]
+  
+  z = x[x$log2FoldChange < -0.5 & x$padj < 0.5]
+  
+  length(y)
+  
+  
+} 
 ```
 
 ```{r}
-keggPathAnal(reList$resF_36_31)
-```
-
-```{r}
-keggPathAnal(reList$resM_36_31)
-```
-
-```{r}
-keggPathAnal(reList$resF_36_32)
-```
-
-```{r}
-keggPathAnal(reList$resM_36_32)
-```
-
-### 41
-
-```{r}
-keggPathAnal(reList$resF_41_21)
-```
-
-```{r}
-keggPathAnal(reList$resM_41_21)
-```
-
-```{r}
-keggPathAnal(reList$resF_41_31)
-```
-
-```{r}
-keggPathAnal(reList$resM_41_31)
-```
-
-```{r}
-keggPathAnal(reList$resF_41_32)
-```
-
-```{r}
-keggPathAnal(reList$resM_41_32, output)
+plot_DEG_barplot <- function(condition_dfs, condition_names, logfc_threshold = 0.5, padj_threshold = 0.5, title = "title your stuff") {
+  
+  # Check if the input is a list of data frames
+  if (!is.list(condition_dfs) || any(!sapply(condition_dfs, is.data.frame))) {
+    stop("Error: condition_dfs must be a list of data frames.")
+  }
+  
+  # Initialize vectors to store the number of positive and negative DE genes for each condition
+  positive_genes <- numeric(length(condition_dfs))
+  negative_genes <- numeric(length(condition_dfs))
+  
+  # Loop over each data frame to count positive and negative DE genes
+  for (i in seq_along(condition_dfs)) {
+    df <- condition_dfs[[i]]
+    
+    # Ensure the data frame contains 'log2FoldChange' and 'pAdj' columns
+    if (!all(c("log2FoldChange", "padj") %in% colnames(df))) {
+      stop(paste("Error: Data frame for condition", condition_names[i], "must contain 'log2FoldChange' and 'pAdj' columns."))
+    }
+    
+    # Count the number of positively and negatively differentially expressed genes
+    positive_genes[i] <- sum(df$log2FoldChange > logfc_threshold & df$padj < padj_threshold, na.rm = TRUE)
+    negative_genes[i] <- sum(df$log2FoldChange < -logfc_threshold & df$padj < padj_threshold, na.rm = TRUE)
+  }
+  
+  # Combine the counts into a matrix for the barplot
+  gene_counts <- rbind(negative_genes, positive_genes)
+  
+  # Calculate the range for the y-axis
+  y_min <- min(c(0, negative_genes))  # Start from 0 to include positive values
+  y_max <- max(c(positive_genes, abs(negative_genes))) * 1.2  # Extend the limit a bit to leave space for the labels
+  
+  # Plot the stacked barplot
+  bar_positions <- barplot(gene_counts,
+                           beside = TRUE,  # Plot bars side by side
+                           names.arg = condition_names,  # Condition labels
+                           col = c("red", "green"),  # Colors for positive and negative
+                           main = title,
+                           ylab = "Number of Genes",
+                           ylim = c(y_min, y_max))  # Adjust the y-axis limits
+  
+  # Add a legend
+  legend("topright", legend = c("Negatively DEGs", "Positively DEGs"), fill = c("red", "green"))
+  
+  # Add text on top of each bar showing the count
+  text(x = bar_positions[1, ], y = negative_genes, labels = negative_genes, pos = 3, col = "black")  # Negative DEGs
+  text(x = bar_positions[2, ], y = positive_genes, labels = positive_genes, pos = 3, col = "black")  # Positive DEGs
+}
 ```
 
 ```{r}
 
+L36 = list(reList$res1F_WT36, reList$res1M_WT36, reList$res2F_WT36, reList$res2M_WT36, reList$res3F_WT36, reList$res3M_WT36)
+
+plot_DEG_barplot(condition_dfs = L36, condition_names = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), title = "Total Differentially Expressed Genes - L36")
 ```
 
 ```{r}
+L41 = list(reList$res1F_WT41, reList$res1M_WT41, reList$res2F_WT41, reList$res2M_WT41, reList$res3F_WT41, reList$res3M_WT41)
+
+plot_DEG_barplot(condition_dfs = L41, condition_names = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), title = "Total Differentially Expressed Genes - L41")
+```
+
+
+```{r, fig.height=6}
+
+intersectTPs =  function(x,y){
+
+  ysig = y[(y$log2FoldChange > 0.5 | y$log2FoldChange < -0.5) & (y$padj < 0.5),]
+  
+  xsig = x[(x$log2FoldChange > 0.5 | y$log2FoldChange < -0.5) & (x$padj < 0.5),]
+  
+  xsig = xsig[!(rownames(xsig) %in% rownames(ysig)),]
+  
+  return(xsig)
+}
+
+resF_36_21n = intersectTPs(x = reList$resF_36_21,y = reList$resF_WT21)
+resM_36_21n = intersectTPs(x = reList$resM_36_21,y = reList$resM_WT21)
+
+resF_36_32n = intersectTPs(x = reList$resF_36_32,y = reList$resF_WT32)
+resM_36_32n = intersectTPs(x = reList$resM_36_32,y = reList$resM_WT32)
+
+resF_36_31n = intersectTPs(x = reList$resF_36_31,y = reList$resF_WT31)
+resM_36_31n = intersectTPs(x = reList$resM_36_31,y = reList$resM_WT31)
+
+
+TP36F = list(reList$resF_36_21, resF_36_21n, reList$resF_36_32, resF_36_32n, reList$resF_36_31, resF_36_31n)
+
+plot_DEG_barplot(condition_dfs = TP36F, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Female L36 DEGs")
+
+TP36M = list(reList$resM_36_21, resM_36_21n, reList$resM_36_32, resM_36_32n, reList$resM_36_31, resM_36_31n)
+
+plot_DEG_barplot(condition_dfs = TP36M, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Male L36 DEGs")
+
+```
+
+
+```{r, fig.height=6}
+resF_41_21n = intersectTPs(x = reList$resF_41_21,y = reList$resF_WT21)
+resM_41_21n = intersectTPs(x = reList$resM_41_21,y = reList$resM_WT21)
+
+resF_41_32n = intersectTPs(x = reList$resF_41_32,y = reList$resF_WT32)
+resM_41_32n = intersectTPs(x = reList$resM_41_32,y = reList$resM_WT32)
+
+resF_41_31n = intersectTPs(x = reList$resF_41_31,y = reList$resF_WT31)
+resM_41_31n = intersectTPs(x = reList$resM_41_31,y = reList$resM_WT31)
+
+
+TP41F = list(reList$resF_41_21, resF_41_21n, reList$resF_41_32, resF_41_32n, reList$resF_41_31, resF_41_31n)
+
+plot_DEG_barplot(condition_dfs = TP41F, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Female L41 DEGs")
+
+TP41M = list(reList$resM_41_21, resM_41_21n, reList$resM_41_32, resM_41_32n, reList$resM_41_31, resM_41_31n)
+
+plot_DEG_barplot(condition_dfs = TP41M, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Male L41 DEGs")
 
 ```
 
 ```{r}
+RBPall = read.csv(file = "DEG_rbps.csv",sep = ",")
+```
+
+```{r}
+ratio = function(x){
+  
+  full = length(genesAll[[x]])
+  
+  rbp = length(RBPall[[x]])
+  
+  # Calculate the percentage of rbp in relation to full
+  rbp_percentage = (rbp / full) * 100
+  
+  # Create a pie chart with the ratio of full to rbp
+  pie_values = c(full - rbp, rbp)
+  labels = c(paste("Non-RBP", round(100 - rbp_percentage,2), "%"), 
+             paste("RBP", round(rbp_percentage,2), "%"))
+  
+  pie(pie_values, labels = labels, main = paste("Ratio of", x, "in genesAll and RBPall"))
+}
+
+
+ratio(x = "res1F_WT36")
+ratio(x = "res1M_WT36")
+
+```
+```{r}
+ratio("res2F_WT36")
+ratio("res2M_WT36")
 
 ```
 
 ```{r}
+ratio("res3F_WT36")
+ratio("res3M_WT36")
 
 ```
 
 ```{r}
+ratio("res1F_WT41")
+ratio("res1M_WT41")
 
 ```
+
+```{r}
+ratio("res2F_WT41")
+ratio("res2M_WT41")
+```
+
+```{r}
+ratio("res3F_WT41")
+ratio("res3M_WT41")
+```
+
+```{r}
+ratio("resF_36_21")
+ratio("resM_36_21")
+ratio("resF_41_21")
+ratio("resM_41_21")
+ratio("resF_WT21")
+ratio("resM_WT21")
+```
+
+```{r}
+ratio("resF_36_32")
+ratio("resM_36_32")
+ratio("resF_41_32")
+ratio("resM_41_32")
+ratio("resF_WT32")
+ratio("resM_WT32")
+```
+
+```{r}
+ratio("resF_36_31")
+ratio("resM_36_31")
+ratio("resF_41_31")
+ratio("resM_41_31")
+ratio("resF_WT31")
+ratio("resM_WT31")
+```
+
+```{r}
+PC_markers = read_excel("pc_markers.xlsx",col_names = FALSE)
+
+res1F_WT36[reList$res1F_WT36$MGI %in% PC_markers$...1,]
+
+pc_mark = function(x){
+  
+  # Ensure 'MGI' column exists in the DESeq2 results object (x)
+  if (!"MGI" %in% colnames(x)) {
+    stop("Error: 'MGI' column not found in the DESeq2 results object")
+  }
+  
+  # Subset 'x' where 'MGI' is present in the PC_markers column
+  x_subset = x[x$MGI %in% PC_markers[[1]], ]
+  
+  x_subset = (x_subset[(x_subset$log2FoldChange > 0.5 | x_subset$log2FoldChange < -0.5) & x_subset$padj < 0.05,])
+  
+  x_subset = na.omit(x_subset)
+  
+  return(x_subset)
+}
+```
+
+```{r}
+pc_mark(reList$res1F_WT36)
+pc_mark(reList$res1M_WT36)
+
+pc_mark(reList$res2F_WT36)
+pc_mark(reList$res2M_WT36)
+
+pc_mark(reList$res3F_WT36)
+pc_mark(reList$res3M_WT36)
+
+pc_mark(reList$res1F_WT41)
+pc_mark(reList$res1M_WT41)
+
+pc_mark(reList$res2F_WT41)
+pc_mark(reList$res2M_WT41)
+
+pc_mark(reList$res3F_WT41)
+pc_mark(reList$res3M_WT41)
+
+```
+
