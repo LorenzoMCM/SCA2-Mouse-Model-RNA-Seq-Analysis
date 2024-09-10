@@ -1,5 +1,5 @@
 ---
-title: "Visualizations"
+title: "Visualizations & Plots"
 author: "Lorenzo.MCM"
 date: "2024-07-19"
 output: html_document
@@ -21,22 +21,22 @@ install.packages(c('dplyr','readxl','DESeq2','ggplot2', 'VennDiagram'), repos = 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
-library(ggplot2)
-library(gplots)
-library(VennDiagram)
-library(pheatmap)
 library(vsn)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(gplots)
+library(AnnotationDbi)
+library(stringr)
 library(dplyr)
 ```
 
-## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with panther-db
+## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with Gene list
 
 ```{r message=FALSE, warning=FALSE}
 
-# Setting Working Directory (WD for easier output management)
+# Setting Working Directory to the folder which contains this .Rmd file
 
-#setwd("your/file/path")
-setwd("C:/Users/Lorenzo/Documents/MESTRADO/R/RNAbps")
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # Importing main reads file
 
@@ -58,20 +58,16 @@ reads = na.omit(reads)
 
 # Importing list of RBPs, omitting NAs
 
-#mainPanther = as.data.frame(read_excel('rna_met.xlsm', col_names = FALSE))
+#mainPanther = as.data.frame(read_excel('rna_met.xlsx', col_names = FALSE))
 
 mainPanther = as.data.frame(read_excel('Panther-RBPs.xlsx', col_names = FALSE))
 
 mainPanther = mainPanther[!is.na(mainPanther)]
 
 # Filtering the reads object so it only contains genes whose MGI is also present in the list of RBPs, resulting in a final "rbps" object 
-#(alternatively comment this first line and uncomment the last one to analyze all genes)
 
-#comment this for analyzing all genes (uncomment last line)
 rbps = reads[reads$MGI %in% mainPanther,]
 
-#comment this for analyzing only rbps (uncomment previous line) 
-#rbps = reads
 
 ```
 
@@ -81,9 +77,7 @@ rbps = reads[reads$MGI %in% mainPanther,]
 
 # Naming rows in the rbps object after their MGI ID and removing all columns except those with the counts for each condition
 
-rownames(rbps) = rbps$MGI
-
-#rownames(rbps) = rbps$Gene_Symbol
+rownames(rbps) = rbps$Gene_Symbol
 
 rbps = rbps[,-c(1,2,3)]
 
@@ -136,7 +130,7 @@ T3M_36 = rbpsM_36[,grep("^3",names(rbpsM_36), value = TRUE)]
 T3F_TG = rbpsF_TG[,grep("^3",names(rbpsF_TG), value = TRUE)]
 T3M_TG = rbpsM_TG[,grep("^3",names(rbpsM_TG), value = TRUE)]
 
-#Binding final objects for comparison between different conditions (Timepoint-Sex-Line-conditions)
+#Binding final objects for comparison between different conditions (obj names = Timepoint-Sex-Line-conditions)
 T1F_WT36 = bind_cols(T1F_WT, T1F_36)
 T1M_WT36 = bind_cols(T1M_WT, T1M_36)
 T1F_WT41 = bind_cols(T1F_WT, T1F_41)
@@ -357,9 +351,9 @@ ddsM_41 = DESeqDataSetFromMatrix(countData = rbpsM_41,colData = cM_41,
                                 design = ~tpM_41)
 ```
 
-## Running DESeq
+## Running DESeq analysis
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE}
 
 dds1F_WTG = DESeq(dds1F_WTG)
 dds1M_WTG = DESeq(dds1M_WTG)
@@ -410,58 +404,7 @@ ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
 ```
 
-```{r}
-
-## log 2 transform 
-rl1F_WTG = rlog(dds1F_WTG)
-rl1M_WTG = rlog(dds1M_WTG)
-
-rl1F_WT36 = rlog(dds1F_WT36)
-rl1M_WT36 = rlog(dds1M_WT36)
-
-rl1F_WT41 = rlog(dds1F_WT41)
-rl1M_WT41 = rlog(dds1M_WT41)
-
-rl1F_3641 = rlog(dds1F_3641)
-rl1M_3641 = rlog(dds1M_3641)
-
-rl2F_WTG = rlog(dds2F_WTG)
-rl2M_WTG = rlog(dds2M_WTG)
-
-rl2F_WT36 = rlog(dds2F_WT36)
-rl2M_WT36 = rlog(dds2M_WT36)
-
-rl2F_WT41 = rlog(dds2F_WT41)
-rl2M_WT41 = rlog(dds2M_WT41)
-
-rl2F_3641 = rlog(dds2F_3641)
-rl2M_3641 = rlog(dds2M_3641)
-
-rl3F_WTG = rlog(dds3F_WTG)
-rl3M_WTG = rlog(dds3M_WTG)
-
-rl3F_WT36 = rlog(dds3F_WT36)
-rl3M_WT36 = rlog(dds3M_WT36)
-
-rl3F_WT41 = rlog(dds3F_WT41)
-rl3M_WT41 = rlog(dds3M_WT41)
-
-rl3F_3641 = rlog(dds3F_3641)
-rl3M_3641 = rlog(dds3M_3641)
-
-rlF_WT = rlog(ddsF_WT)
-rlM_WT = rlog(ddsM_WT)
-
-rlF_TG = rlog(ddsF_TG)
-rlM_TG = rlog(ddsM_TG)
-
-rlF_36 = rlog(ddsF_36)
-rlM_36 = rlog(ddsM_36)
-
-rlF_41 = rlog(ddsF_41)
-rlM_41 = rlog(ddsM_41)
-
-```
+# Preparing readable output
 
 ## Converting to result objects
 
@@ -537,7 +480,6 @@ resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
 
 ```
 
-
 ## Converting results to dfs, adding MGI,
 entrez and Symbol as columns 
 
@@ -557,17 +499,18 @@ reList = lapply(reList, function(res) {
 
   df = as.data.frame(res)
 
-  df$MGI = rownames(df)
+  df$Gene_Symbol = rownames(df)
   
-  df = merge(df, reads[, c("MGI", "Gene_ID", "Gene_Symbol")], by = "MGI", all.x = TRUE)
+  df = merge(df, reads[, c("MGI", "Gene_ID", "Gene_Symbol")], by = "Gene_Symbol", all.x = TRUE)
   
   rownames(df) <- NULL
   
   return(df)
 })
+
 ```
 
-## Function for selecting genes according to LFC, padj and key
+## Function for selecting genes according to LFC, padj value and key
 
 ```{r}
 
@@ -576,8 +519,8 @@ pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "
   # Filter rows based on log2FoldChange and padj
   filtered_x <- x[(x$log2FoldChange > lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
   
-  # Sort the filtered rows by padj value
-  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  # Sort the filtered rows by LFC value
+  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
   
   # Handle max condition. If a number, returned DF has that many lines
   if (!is.null(max)) {
@@ -591,7 +534,7 @@ ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = 
 
   filtered_x <- x[(x$log2FoldChange < lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
   
-  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
   
   if (!is.null(max)) {
     sorted_x <- head(sorted_x, max)
@@ -604,7 +547,7 @@ degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "G
   
   filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
   
-  sorted_x <- filtered_x[order(filtered_x$padj), ]
+  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
   
   if (!is.null(max)) {
     sorted_x <- head(sorted_x, max)
@@ -619,23 +562,60 @@ degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "G
 
 ```{r}
 
-genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.5, max = NULL)
+genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
 
-genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.5, max = NULL)
+genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.05, max = NULL)
 
-genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.5, max = NULL)
+genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
 
 ```
 
 # Visualizations
 
-## PCA Plots
+# rlog transform
 
 ```{r}
-plotPCA(rl1F_WTG, intgroup= c("l1F_WTG"))
-plotPCA(rl1M_WTG, intgroup= c("l1M_WTG"))
+rl1F_WT36 = rlog(dds1F_WT36)
+rl1M_WT36 = rlog(dds1M_WT36)
+
+rl2F_WT36 = rlog(dds2F_WT36)
+rl2M_WT36 = rlog(dds2M_WT36)
+
+rl3F_WT36 = rlog(dds3F_WT36)
+rl3M_WT36 = rlog(dds3M_WT36)
+
+rl1F_WT41 = rlog(dds1F_WT41)
+rl1M_WT41 = rlog(dds1M_WT41)
+
+rl2F_WT41 = rlog(dds2F_WT41)
+rl2M_WT41 = rlog(dds2M_WT41)
+
+rl3F_WT41 = rlog(dds3F_WT41)
+rl3M_WT41 = rlog(dds3M_WT41)
+
+rl1F_3641 = rlog(dds1F_3641)
+rl1M_3641 = rlog(dds1M_3641)
+
+rl2F_3641 = rlog(dds2F_3641)
+rl2M_3641 = rlog(dds2M_3641)
+
+rl3F_3641 = rlog(dds3F_3641)
+rl3M_3641 = rlog(dds3M_3641)
+
+rlF_WT = rlog(ddsF_WT)
+rlM_WT = rlog(ddsM_WT)
+
+rlF_36 = rlog(ddsF_36)
+rlM_36 = rlog(ddsM_36)
+
+rlF_41 = rlog(ddsF_41)
+rlM_41 = rlog(ddsM_41)
+
 
 ```
+
+## PCA Plots
+
 
 ```{r}
 plotPCA(rl1F_WT36, intgroup = c("l1F_WT36"))
@@ -653,11 +633,6 @@ plotPCA(rl1M_3641, intgroup = c("l1M_3641"))
 ```
 
 ```{r}
-plotPCA(rl2F_WTG, intgroup= c("l2F_WTG"))
-plotPCA(rl2M_WTG, intgroup= c("l2M_WTG"))
-```
-
-```{r}
 plotPCA(rl2F_WT36, intgroup = c("l2F_WT36"))
 plotPCA(rl2M_WT36, intgroup = c("l2M_WT36"))
 ```
@@ -670,11 +645,6 @@ plotPCA(rl2M_WT41, intgroup = c("l2M_WT41"))
 ```{r}
 plotPCA(rl2F_3641, intgroup = c("l2F_3641"))
 plotPCA(rl2M_3641, intgroup = c("l2M_3641"))
-```
-
-```{r}
-plotPCA(rl3F_WTG, intgroup= c("l3F_WTG"))
-plotPCA(rl3M_WTG, intgroup= c("l3M_WTG"))
 ```
 
 ```{r}
@@ -705,11 +675,6 @@ plotPCA(rlM_36, intgroup = c("tpM_36"))
 ```{r}
 plotPCA(rlF_41, intgroup = c("tpF_41"))
 plotPCA(rlM_41, intgroup = c("tpM_41"))
-```
-
-```{r}
-plotPCA(rlF_TG, intgroup = c("tpF_TG"))
-plotPCA(rlM_TG, intgroup = c("tpM_TG"))
 ```
 
 ## Heatmaps
@@ -779,30 +744,6 @@ seqHeatmap = function(x,n = 50){
 ```
 
 ```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1F_WTG, n = 100)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1M_WTG)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2F_WTG)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2M_WTG)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3F_WTG)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3M_WTG)
-```
-
-```{r fig.height=8, fig.width=12}
 seqHeatmap(rl1F_WT36)
 ```
 
@@ -810,259 +751,541 @@ seqHeatmap(rl1F_WT36)
 seqHeatmap(rl1F_WT41)
 ```
 
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1M_WT36)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1M_WT41)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2F_WT36)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2F_WT41)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2M_WT36)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2M_WT41)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3F_WT36)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3F_WT41)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3M_WT36)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3M_WT41)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1F_3641)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl1M_3641)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2F_3641)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl2M_3641)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3F_3641)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rl3M_3641)
+```
+
 ## Plot Counts
 
-## Converting to result objects
-
 ```{r}
 
-res1F_WTG = results(dds1F_WTG, contrast = c("l1F_WTG", "TG", "WT"))
-res1M_WTG = results(dds1M_WTG, contrast = c("l1M_WTG", "TG", "WT"))
+plotCounts(dds1F_WT36, gene = "Carhsp1", intgroup = "l1F_WT36", main = "Carhsp1")
 
-res1F_WT36 = results(dds1F_WT36, contrast = c("l1F_WT36", "36", "WT"))
-res1M_WT36 = results(dds1M_WT36, contrast = c("l1M_WT36", "36", "WT"))
-
-res1F_WT41 = results(dds1F_WT41, contrast = c("l1F_WT41", "41", "WT"))
-res1M_WT41 = results(dds1M_WT41, contrast = c("l1M_WT41", "41", "WT"))
-
-res1F_3641 = results(dds1F_3641, contrast = c("l1F_3641", "41", "36"))
-res1M_3641 = results(dds1M_3641, contrast = c("l1M_3641", "41", "36"))
-
-res2F_WTG = results(dds2F_WTG, contrast = c("l2F_WTG", "TG", "WT"))
-res2M_WTG = results(dds2M_WTG, contrast = c("l2M_WTG", "TG", "WT"))
-
-res2F_WT36 = results(dds2F_WT36, contrast = c("l2F_WT36", "36", "WT"))
-res2M_WT36 = results(dds2M_WT36, contrast = c("l2M_WT36", "36", "WT"))
-
-res2F_WT41 = results(dds2F_WT41, contrast = c("l2F_WT41", "41", "WT"))
-res2M_WT41 = results(dds2M_WT41, contrast = c("l2M_WT41", "41", "WT"))
-
-res2F_3641 = results(dds2F_3641, contrast = c("l2F_3641", "41", "36"))
-res2M_3641 = results(dds2M_3641, contrast = c("l2M_3641", "41", "36"))
-
-res3F_WTG = results(dds3F_WTG, contrast = c("l3F_WTG", "TG", "WT"))
-res3M_WTG = results(dds3M_WTG, contrast = c("l3M_WTG", "TG", "WT"))
-
-res3F_WT36 = results(dds3F_WT36, contrast = c("l3F_WT36", "36", "WT"))
-res3M_WT36 = results(dds3M_WT36, contrast = c("l3M_WT36", "36", "WT"))
-
-res3F_WT41 = results(dds3F_WT41, contrast = c("l3F_WT41", "41", "WT"))
-res3M_WT41 = results(dds3M_WT41, contrast = c("l3M_WT41", "41", "WT"))
-
-res3F_3641 = results(dds3F_3641, contrast = c("l3F_3641","41", "36"))
-res3M_3641 = results(dds3M_3641, contrast = c("l3M_3641","41", "36"))
-                    
-resF_WT31 = results(ddsF_WT, contrast = c("tpF_WT","3", "1"))
-resF_WT21 = results(ddsF_WT, contrast = c("tpF_WT","2", "1"))
-resF_WT32 = results(ddsF_WT, contrast = c("tpF_WT","3", "2"))
-
-resM_WT31 = results(ddsM_WT, contrast = c("tpM_WT","3","1"))
-resM_WT21 = results(ddsM_WT, contrast = c("tpM_WT","2","1"))
-resM_WT32 = results(ddsM_WT, contrast = c("tpM_WT","3","2"))
-
-resF_TG31 = results(ddsF_TG, contrast = c("tpF_TG","3","1"))
-resF_TG21 = results(ddsF_TG, contrast = c("tpF_TG","2","1"))
-resF_TG32 = results(ddsF_TG, contrast = c("tpF_TG","3","2"))
-
-resM_TG31 = results(ddsM_TG, contrast = c("tpM_TG","3","1"))
-resM_TG21 = results(ddsM_TG, contrast = c("tpM_TG","2","1"))
-resM_TG32 = results(ddsM_TG, contrast = c("tpM_TG","3","2"))
-
-resF_36_31 = results(ddsF_36, contrast = c("tpF_36","3","1"))
-resF_36_21 = results(ddsF_36, contrast = c("tpF_36","2","1"))
-resF_36_32 = results(ddsF_36, contrast = c("tpF_36","3","2"))
-
-resM_36_31 = results(ddsM_36, contrast = c("tpM_36","3","1"))
-resM_36_21 = results(ddsM_36, contrast = c("tpM_36","2","1"))
-resM_36_32 = results(ddsM_36, contrast = c("tpM_36","3","2"))
-
-resF_41_31 = results(ddsF_41, contrast = c("tpF_41","3","1"))
-resF_41_21 = results(ddsF_41, contrast = c("tpF_41","2","1"))
-resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
-
-resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
-resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
-resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
+# I will expand this section as needed
 
 ```
 
 
+## Venn Diagrams (uncomment to have files output to WD)
+
+```{r}
+# 
+# venn.diagram(
+#   x = list(
+#     "M" = genesAll$res1M_WT36,
+#     "F" = genesAll$res1F_WT36
+#   ),
+#   filename = "T1_36.png",
+#   col = "black",
+#   fill = c("red", "green"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green")
+# )
+# 
+# 
+# 
+# venn.diagram(
+#   x = list(
+#     "M" = genesAll$res2M_WT36,
+#     "F" = genesAll$res2F_WT36
+#   ),
+#   filename = "T2_36.png",
+#   col = "black",
+#   fill = c("red", "green"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green")
+# )
+# 
+# venn.diagram(
+#   x = list(
+#     "M" = genesAll$res3M_WT36,
+#     "F" = genesAll$res3F_WT36
+#   ),
+#   filename = "T3_36.png",
+#   col = "black",
+#   fill = c("red", "green"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green")
+# )
+# 
+# venn.diagram(
+#   x = list(
+#     "T1" = genesAll$res1F_WT36,
+#     "T2" = genesAll$res2F_WT36,
+#     "T3" = genesAll$res3F_WT36
+#   ),
+#   filename = "TPF_36.png",
+#   col = "black",
+#   fill = c("red", "green", "blue"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green", "blue")
+# )
+# 
+# venn.diagram(
+#   x = list(
+#     "T1" = genesAll$res1M_WT36,
+#     "T2" = genesAll$res2M_WT36,
+#     "T3" = genesAll$res3M_WT36
+#   ),
+#   filename = "TPM_36.png",
+#   col = "black",
+#   fill = c("red", "green", "blue"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green", "blue")
+# )
+# ```
+# 
+# ```{r}
+# venn.diagram(
+#   x = list(
+#     "M" = genesAll$res1M_WT41,
+#     "F" = genesAll$res1F_WT41
+#   ),
+#   filename = "T1_41.png",
+#   col = "black",
+#   fill = c("red", "green"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green")
+# )
+# 
+# venn.diagram(
+#   x = list(
+#     "M" = genesAll$res2M_WT41,
+#     "F" = genesAll$res2F_WT41
+#   ),
+#   filename = "T2_41.png",
+#   col = "black",
+#   fill = c("red", "green"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green")
+# )
+# 
+# venn.diagram(
+#   x = list(
+#     "M" = genesAll$res3M_WT41,
+#     "F" = genesAll$res3F_WT41
+#   ),
+#   filename = "T3_41.png",
+#   col = "black",
+#   fill = c("red", "green"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green")
+# )
+# 
+# venn.diagram(
+#   x = list(
+#     "T1" = genesAll$res1F_WT41,
+#     "T2" = genesAll$res2F_WT41,
+#     "T3" = genesAll$res3F_WT41
+#   ),
+#   filename = "TPF_41.png",
+#   col = "black",
+#   fill = c("red", "green", "blue"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green", "blue")
+# )
+# 
+# venn.diagram(
+#   x = list(
+#     "T1" = genesAll$res1M_WT41,
+#     "T2" = genesAll$res2M_WT41,
+#     "T3" = genesAll$res3M_WT41
+#   ),
+#   filename = "TPM_41.png",
+#   col = "black",
+#   fill = c("red", "green", "blue"),
+#   alpha = 0.5,
+#   cex = 1.5,
+#   cat.cex = 1.5,
+#   cat.col = c("red", "green", "blue")
+# )
+```
+
+## Pie charts of RBPs (depends on RBP and ALL DEGs .csv files having already been formatted in excel)
+
+```{r}
+RBPall = read.csv(file = "DEG_rbps.csv",sep = ";")
+DEGall = read.csv(file = "DEG_ALL.csv", sep = ";")
+```
+
+```{r}
+ratio = function(x){
+  
+  full = na.omit(DEGall[[x]])
+  
+  rbp = na.omit(RBPall[[x]])
+  
+  full = length(full)
+  
+  rbp = length(rbp)
+  
+  # Calculate the percentage of rbp in relation to full
+  rbp_percentage = (rbp / full) * 100
+  
+  # Create a pie chart with the ratio of full to rbp
+  pie_values = c(full - rbp, rbp)
+  labels = c(paste("Non-RBP", round(100 - rbp_percentage,2), "%"), 
+             paste("RBP", round(rbp_percentage,2), "%"))
+  
+  pie(pie_values, labels = labels, main = paste("Ratio of", x, "in genesAll and RBPall"))
+}
+
+
+ratio(x = "res1F_WT36")
+ratio(x = "res1M_WT36")
+
+```
+
+```{r}
+ratio("res2F_WT36")
+ratio("res2M_WT36")
+
+```
+
+```{r}
+ratio("res3F_WT36")
+ratio("res3M_WT36")
+
+```
+
+```{r}
+ratio("res1F_WT41")
+ratio("res1M_WT41")
+
+```
+
+```{r}
+ratio("res2F_WT41")
+ratio("res2M_WT41")
+```
+
+```{r}
+ratio("res3F_WT41")
+ratio("res3M_WT41")
+```
+
+```{r}
+ratio("resF_36_21")
+ratio("resM_36_21")
+ratio("resF_41_21")
+ratio("resM_41_21")
+ratio("resF_WT21")
+ratio("resM_WT21")
+```
+
+```{r}
+ratio("resF_36_32")
+ratio("resM_36_32")
+ratio("resF_41_32")
+ratio("resM_41_32")
+ratio("resF_WT32")
+ratio("resM_WT32")
+```
+
+```{r}
+ratio("resF_36_31")
+ratio("resM_36_31")
+ratio("resF_41_31")
+ratio("resM_41_31")
+ratio("resF_WT31")
+ratio("resM_WT31")
+```
+
+## Median LFC for pAdj < 0.5 genes
+
+```{r}
+medianpLFC = function(x){
+  
+  x = x[(x$log2FoldChange > 0) & (x$padj < 0.5),]
+  #x = x[(x$log2FoldChange > 0.5) & (x$padj < 0.5),]
+  
+  y = median(x$log2FoldChange, na.rm = TRUE)
+  
+  return(y)
+}
+
+mediannLFC = function(x){
+
+  x = x[(x$log2FoldChange < 0) & (x$padj < 0.5),]    
+  #x = x[(x$log2FoldChange < -0.5) & (x$padj < 0.5),]
+  
+  y = median(x$log2FoldChange, na.rm = TRUE)
+  
+  return(y)
+}
+```
+
 ```{r}
 
-plotCounts(dds1F_WT36, gene = "1196368", intgroup = "l1F_WT36", main = "Carhsp1")
+T1F_WT36 = medianpLFC(reList$res1F_WT36)
+
+T2F_WT36 = medianpLFC(reList$res2F_WT36)
+
+T3F_WT36 = medianpLFC(reList$res3F_WT36)
+
+T1M_WT36 = medianpLFC(reList$res1M_WT36)
+
+T2M_WT36 = medianpLFC(reList$res2M_WT36)
+
+T3M_WT36 = medianpLFC(reList$res3M_WT36)
+
+medPlfc36 = c(T1F_WT36, T2F_WT36, T3F_WT36, T1M_WT36, T2M_WT36, T3M_WT36)
+
+barplot(medPlfc36, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Median Expression Log Fold Change for L36 PDEs", ylab = "Median Expression Log Fold Change")
+```
+
+```{r}
+T1F_WT41 = medianpLFC(reList$res1F_WT41)
+
+T2F_WT41 = medianpLFC(reList$res2F_WT41)
+
+T3F_WT41 = medianpLFC(reList$res3F_WT41)
+
+T1M_WT41 = medianpLFC(reList$res1M_WT41)
+
+T2M_WT41 = medianpLFC(reList$res2M_WT41)
+
+T3M_WT41 = medianpLFC(reList$res3M_WT41)
+
+medPlfc41 = c(T1F_WT41, T2F_WT41, T3F_WT41, T1M_WT41, T2M_WT41, T3M_WT41)
+
+barplot(medPlfc41, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Median Expression Log Fold Change for L41 PDEs", ylab = "Average Expression Log Fold Change")
+```
+
+```{r}
+T1F_WT36 = mediannLFC(reList$res1F_WT36)
+
+T2F_WT36 = mediannLFC(reList$res2F_WT36)
+
+T3F_WT36 = mediannLFC(reList$res3F_WT36)
+
+T1M_WT36 = mediannLFC(reList$res1M_WT36)
+
+T2M_WT36 = mediannLFC(reList$res2M_WT36)
+
+T3M_WT36 = mediannLFC(reList$res3M_WT36)
+
+medNlfc36 = c(T1F_WT36, T2F_WT36, T3F_WT36, T1M_WT36, T2M_WT36, T3M_WT36)
+
+barplot(medNlfc36, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Median Expression Log Fold Change for L36 NDEs", ylab = "Median Expression Log Fold Change")
+```
+
+
+```{r}
+T1F_WT41 = mediannLFC(reList$res1F_WT41)
+
+T2F_WT41 = mediannLFC(reList$res2F_WT41)
+
+T3F_WT41 = mediannLFC(reList$res3F_WT41)
+
+T1M_WT41 = mediannLFC(reList$res1M_WT41)
+
+T2M_WT41 = mediannLFC(reList$res2M_WT41)
+
+T3M_WT41 = mediannLFC(reList$res3M_WT41)
+
+medNlfc41 = c(T1F_WT41, T2F_WT41, T3F_WT41, T1M_WT41, T2M_WT41, T3M_WT41)
+
+barplot(medNlfc41, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main = "Average Expression Log Fold Change for L41 NDEs", ylab = "Median Expression Log Fold Change")
+```
+
+## Absolute numbers of RBP DEGs, split by condition
+
+```{r}
+plot_DEG_barplot <- function(condition_dfs, condition_names, logfc_threshold = 0.5, padj_threshold = 0.5, title = "title your stuff") {
+  
+  # Check if the input is a list of data frames
+  if (!is.list(condition_dfs) || any(!sapply(condition_dfs, is.data.frame))) {
+    stop("Error: condition_dfs must be a list of data frames.")
+  }
+  
+  # Initialize vectors to store the number of positive and negative DE genes for each condition
+  positive_genes <- numeric(length(condition_dfs))
+  negative_genes <- numeric(length(condition_dfs))
+  
+  # Loop over each data frame to count positive and negative DE genes
+  for (i in seq_along(condition_dfs)) {
+    df <- condition_dfs[[i]]
+    
+    # Ensure the data frame contains 'log2FoldChange' and 'pAdj' columns
+    if (!all(c("log2FoldChange", "padj") %in% colnames(df))) {
+      stop(paste("Error: Data frame for condition", condition_names[i], "must contain 'log2FoldChange' and 'pAdj' columns."))
+    }
+    
+    # Count the number of positively and negatively differentially expressed genes
+    positive_genes[i] <- sum(df$log2FoldChange > logfc_threshold & df$padj < padj_threshold, na.rm = TRUE)
+    negative_genes[i] <- sum(df$log2FoldChange < -logfc_threshold & df$padj < padj_threshold, na.rm = TRUE)
+  }
+  
+  # Combine the counts into a matrix for the barplot
+  gene_counts <- rbind(negative_genes, positive_genes)
+  
+  # Calculate the range for the y-axis
+  y_min <- min(c(0, negative_genes))  # Start from 0 to include positive values
+  y_max <- max(c(positive_genes, abs(negative_genes))) * 1.2  # Extend the limit a bit to leave space for the labels
+  
+  # Plot the stacked barplot
+  bar_positions <- barplot(gene_counts,
+                           beside = TRUE,  # Plot bars side by side
+                           names.arg = condition_names,  # Condition labels
+                           col = c("red", "green"),  # Colors for positive and negative
+                           main = title,
+                           ylab = "Number of Genes",
+                           ylim = c(y_min, y_max))  # Adjust the y-axis limits
+  
+  # Add a legend
+  legend("topright", legend = c("Negatively DEGs", "Positively DEGs"), fill = c("red", "green"))
+  
+  # Add text on top of each bar showing the count
+  text(x = bar_positions[1, ], y = negative_genes, labels = negative_genes, pos = 3, col = "black")  # Negative DEGs
+  text(x = bar_positions[2, ], y = positive_genes, labels = positive_genes, pos = 3, col = "black")  # Positive DEGs
+}
+```
+
+```{r}
+
+L36 = list(reList$res1F_WT36, reList$res1M_WT36, reList$res2F_WT36, reList$res2M_WT36, reList$res3F_WT36, reList$res3M_WT36)
+
+plot_DEG_barplot(condition_dfs = L36, condition_names = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), title = "Total Differentially Expressed Genes - L36")
+```
+
+```{r}
+L41 = list(reList$res1F_WT41, reList$res1M_WT41, reList$res2F_WT41, reList$res2M_WT41, reList$res3F_WT41, reList$res3M_WT41)
+
+plot_DEG_barplot(condition_dfs = L41, condition_names = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), title = "Total Differentially Expressed Genes - L41")
+```
+
+
+```{r, fig.height=6}
+
+intersectTPs =  function(x,y){
+
+  ysig = y[(y$log2FoldChange > 0.5 | y$log2FoldChange < -0.5) & (y$padj < 0.5),]
+  
+  xsig = x[(x$log2FoldChange > 0.5 | y$log2FoldChange < -0.5) & (x$padj < 0.5),]
+  
+  xsig = xsig[!(rownames(xsig) %in% rownames(ysig)),]
+  
+  return(xsig)
+}
+
+resF_36_21n = intersectTPs(x = reList$resF_36_21,y = reList$resF_WT21)
+resM_36_21n = intersectTPs(x = reList$resM_36_21,y = reList$resM_WT21)
+
+resF_36_32n = intersectTPs(x = reList$resF_36_32,y = reList$resF_WT32)
+resM_36_32n = intersectTPs(x = reList$resM_36_32,y = reList$resM_WT32)
+
+resF_36_31n = intersectTPs(x = reList$resF_36_31,y = reList$resF_WT31)
+resM_36_31n = intersectTPs(x = reList$resM_36_31,y = reList$resM_WT31)
+
+
+TP36F = list(reList$resF_36_21, resF_36_21n, reList$resF_36_32, resF_36_32n, reList$resF_36_31, resF_36_31n)
+
+plot_DEG_barplot(condition_dfs = TP36F, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Female L36 DEGs")
+
+TP36M = list(reList$resM_36_21, resM_36_21n, reList$resM_36_32, resM_36_32n, reList$resM_36_31, resM_36_31n)
+
+plot_DEG_barplot(condition_dfs = TP36M, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Male L36 DEGs")
 
 ```
 
 
-## Venn Diagrams
+```{r, fig.height=6}
+resF_41_21n = intersectTPs(x = reList$resF_41_21,y = reList$resF_WT21)
+resM_41_21n = intersectTPs(x = reList$resM_41_21,y = reList$resM_WT21)
 
-```{r}
+resF_41_32n = intersectTPs(x = reList$resF_41_32,y = reList$resF_WT32)
+resM_41_32n = intersectTPs(x = reList$resM_41_32,y = reList$resM_WT32)
 
-venn.diagram(
-  x = list(
-    "M" = genesAll$res1M_WT36,
-    "F" = genesAll$res1F_WT36
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green")
-)
+resF_41_31n = intersectTPs(x = reList$resF_41_31,y = reList$resF_WT31)
+resM_41_31n = intersectTPs(x = reList$resM_41_31,y = reList$resM_WT31)
 
 
+TP41F = list(reList$resF_41_21, resF_41_21n, reList$resF_41_32, resF_41_32n, reList$resF_41_31, resF_41_31n)
 
-venn.diagram(
-  x = list(
-    "M" = genesAll$res2M_WT36,
-    "F" = genesAll$res2F_WT36
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green")
-)
+plot_DEG_barplot(condition_dfs = TP41F, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Female L41 DEGs")
 
-venn.diagram(
-  x = list(
-    "M" = genesAll$res3M_WT36,
-    "F" = genesAll$res3F_WT36
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green")
-)
+TP41M = list(reList$resM_41_21, resM_41_21n, reList$resM_41_32, resM_41_32n, reList$resM_41_31, resM_41_31n)
 
-venn.diagram(
-  x = list(
-    "T1" = genesAll$res1F_WT36,
-    "T2" = genesAll$res2F_WT36,
-    "T3" = genesAll$res3F_WT36
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green", "blue"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green", "blue")
-)
-
-venn.diagram(
-  x = list(
-    "T1" = genesAll$res1M_WT36,
-    "T2" = genesAll$res2M_WT36,
-    "T3" = genesAll$res3M_WT36
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green", "blue"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green", "blue")
-)
-```
-
-```{r}
-venn.diagram(
-  x = list(
-    "M" = genesAll$res1M_WT41,
-    "F" = genesAll$res1F_WT41
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green")
-)
-
-venn.diagram(
-  x = list(
-    "M" = genesAll$res2M_WT41,
-    "F" = genesAll$res2F_WT41
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green")
-)
-
-venn.diagram(
-  x = list(
-    "M" = genesAll$res3M_WT41,
-    "F" = genesAll$res3F_WT41
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green")
-)
-
-venn.diagram(
-  x = list(
-    "T1" = genesAll$res1F_WT41,
-    "T2" = genesAll$res2F_WT41,
-    "T3" = genesAll$res3F_WT41
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green", "blue"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green", "blue")
-)
-
-venn.diagram(
-  x = list(
-    "T1" = genesAll$res1M_WT41,
-    "T2" = genesAll$res2M_WT41,
-    "T3" = genesAll$res3M_WT41
-  ),
-  filename = NULL,
-  col = "black",
-  fill = c("red", "green", "blue"),
-  alpha = 0.5,
-  cex = 1.5,
-  cat.cex = 1.5,
-  cat.col = c("red", "green", "blue")
-)
-```
-
-```{r}
+plot_DEG_barplot(condition_dfs = TP41M, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Male L41 DEGs")
 
 ```
 
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```
-
-```{r}
-
-```

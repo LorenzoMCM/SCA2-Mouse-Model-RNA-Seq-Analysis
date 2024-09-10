@@ -1,7 +1,7 @@
 ---
-title: "GO_Analysis_RBPs"
+title: "RNA_setup"
 author: "Lorenzo.MCM"
-date: "2024-07-20"
+date: "2024-06-04"
 output: html_document
 ---
 
@@ -15,27 +15,24 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','biomaRt','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
 ```
 
 ```{r eval=FALSE}
-BiocManager::install(c('DESeq2', 'AnnotationDbi', 'vsn', 'org.Mm.eg.db', 'apeglm', 'select'))
-
-BiocManager::install("topGO")
+BiocManager::install(c('DESeq2', 'AnnotationDbi', 'org.Mm.eg.db', 'apeglm', 'ReportingTools', 'clusterProfiler'))
 ```
 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
-library(ggplot2)
-library(gplots)
-library(pheatmap)
 library(vsn)
 library(Glimma)
 library(regionReport)
 library(clusterProfiler)
 library(org.Mm.eg.db)
 library(AnnotationDbi)
+library(biomaRt)
+library(stringr)
 library(dplyr)
 ```
 
@@ -60,8 +57,8 @@ reads = as.data.frame(reads)
 reads = na.omit(reads)
 
 rbps = reads
-
 ```
+
 
 ## Naming conditions and final set up of rbps object
 
@@ -343,9 +340,9 @@ ddsM_41 = DESeqDataSetFromMatrix(countData = rbpsM_41,colData = cM_41,
                                 design = ~tpM_41)
 ```
 
-## Running DESeq
+## Running DESeq analysis
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE}
 
 dds1F_WTG = DESeq(dds1F_WTG)
 dds1M_WTG = DESeq(dds1M_WTG)
@@ -394,16 +391,6 @@ ddsM_36 = DESeq(ddsM_36)
 
 ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
-```
-
-# Reports on differentially expressed (Padj < 0.5) genes for easy visualization, commented to allow Knitting
-
-```{r eval=FALSE, include=FALSE}
-# Commented to allow Markdown knitting, must uncomment and open output in browser for visualization
-
-#limmaVolcano(x = dds3F_WTG, counts = T3F_WTG, groups = c3F_WTG$l3F_WTG)
-
-#DESeq2Report(dds = dds3F_WTG, project = "T3 Female TG v WT", intgroup = c("l3F_WTG"), output = "T3_F_WTG")
 ```
 
 # Preparing readable output
@@ -479,14 +466,9 @@ resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
 resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
 resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
 resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
+
 ```
 
-# GO Analysis
-
-```{r message=FALSE}
-library(GO.db)
-library(GOstats)
-```
 ## Converting results to dfs, adding MGI,
 entrez and Symbol as columns 
 
@@ -517,733 +499,138 @@ reList = lapply(reList, function(res) {
 
 ```
 
-```{r}
-#Subsetting only genes with a padj below 0.05 from results
-sigRes = lapply(reList, function(x) as.data.frame(subset(x, padj < 0.05)))
+## Function for selecting genes according to LFC, padj value and key
 
-allgo = function(x, lfcThreshold = 2, padjThreshold = 0.05, cutOff = 0.05, ont = "BP"){
+```{r}
+
+pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
   
-  selectGenes = unique(x$Gene_ID[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold)])
+  # Filter rows based on log2FoldChange and padj
+  filtered_x <- x[(x$log2FoldChange > lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
   
-  if(length(selectGenes) == 0){
-    warning("No genes meet the log2 fold change threshold.")
-    return(NULL)
-  }  
+  # Sort the filtered rows by LFC value
+  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
   
-  universe <- unique(x$Gene_ID)
+  # Handle max condition. If a number, returned DF has that many lines
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
   
-  Params = new("GOHyperGParams",
-                 geneIds = selectGenes,
-                 universeGeneIds = universe,
-                 annotation = "org.Mm.eg.db",
-                 ontology = ont,
-                 pvalueCutoff = cutOff,
-                 conditional = FALSE,
-                 testDirection = "over")
-    
-  return(hyperGTest(Params))
+  return(sorted_x[[key]])
 }
 
+ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
 
-```
-
-## GO graphs
-
-```{r fig.height=20, fig.width=20}
-
-# Function for listing significant genes of a result object
-
-sigGenes = function(x, lfcThreshold = 0.5, padjThreshold = 0.05){
+  filtered_x <- x[(x$log2FoldChange < lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
   
-  selectGenes = unique(x$Gene_ID[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold)])
-  return(selectGenes)
+  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
+  
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
+  
+  return(sorted_x[[key]])
 }
 
-# Applying the function to all results 
-sigAll = lapply(reList, sigGenes)
-
-# Now we can apply the GO graph function to each condition we want, important to have large fig. dimensions at the start of the chunk for the sake of readability
-
-plotGOgraph(x = (enrichGO(sigAll$res1F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res1M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res2F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res2M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res3F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res3M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r}
-plotGOgraph(x = (enrichGO(sigAll$res1F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res1M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res2F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res2M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res3F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-```{r fig.height=20, fig.width=20}
-plotGOgraph(x = (enrichGO(sigAll$res3M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
-```
-
-
-
-
-## Comparing WT and TG mice (these take ~5 minutes to complete per chunk, depending on your CPU single core performance)
-
-### BP Analysis
-```{r}
-BPGO1F_WT36 = (summary(allgo(sigRes$res1F_WT36)))
-BPGO1M_WT36 = (summary(allgo(sigRes$res1M_WT36)))
-
-BPGO2F_WT36 = (summary(allgo(sigRes$res2F_WT36)))
-BPGO2M_WT36 = (summary(allgo(sigRes$res2M_WT36)))
-
-BPGO3F_WT36 = (summary(allgo(sigRes$res3F_WT36)))
-BPGO3M_WT36 = (summary(allgo(sigRes$res3M_WT36)))
-
-BPGO1F_WT41 = (summary(allgo(sigRes$res1F_WT41)))
-BPGO1M_WT41 = (summary(allgo(sigRes$res1M_WT41)))
-
-BPGO2F_WT41 = (summary(allgo(sigRes$res2F_WT41)))
-BPGO2M_WT41 = (summary(allgo(sigRes$res2M_WT41)))
-
-BPGO3F_WT41 = (summary(allgo(sigRes$res3F_WT41)))
-BPGO3M_WT41 = (summary(allgo(sigRes$res3M_WT41)))
+degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+  
+  filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
+  
+  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
+  
+  if (!is.null(max)) {
+    sorted_x <- head(sorted_x, max)
+  }
+  
+  return(sorted_x[[key]])
+}
 
 ```
 
-```{r}
-BPGO1F_WT36
-BPGO1M_WT36
-
-BPGO2F_WT36
-BPGO2M_WT36
-
-BPGO3F_WT36
-BPGO3M_WT36
-```
-
-```{r}
-BPGO1F_WT41
-BPGO1M_WT41
-
-BPGO2F_WT41
-BPGO2M_WT41
-
-BPGO3F_WT41
-BPGO3M_WT41
-```
-
-### CC Analysis
-
-```{r}
-CCGO1F_WT36 = (summary(allgo(sigRes$res1F_WT36, ont = "CC")))
-CCGO1M_WT36 = (summary(allgo(sigRes$res1M_WT36, ont = "CC")))
-
-CCGO2F_WT36 = (summary(allgo(sigRes$res2F_WT36, ont = "CC")))
-CCGO2M_WT36 = (summary(allgo(sigRes$res2M_WT36, ont = "CC")))
-
-CCGO3F_WT36 = (summary(allgo(sigRes$res3F_WT36, ont = "CC")))
-CCGO3M_WT36 = (summary(allgo(sigRes$res3M_WT36, ont = "CC")))
-
-CCGO1F_WT41 = (summary(allgo(sigRes$res1F_WT41, ont = "CC")))
-CCGO1M_WT41 = (summary(allgo(sigRes$res1M_WT41, ont = "CC")))
-
-CCGO2F_WT41 = (summary(allgo(sigRes$res2F_WT41, ont = "CC")))
-CCGO2M_WT41 = (summary(allgo(sigRes$res2M_WT41, ont = "CC")))
-
-CCGO3F_WT41 = (summary(allgo(sigRes$res3F_WT41, ont = "CC")))
-CCGO3M_WT41 = (summary(allgo(sigRes$res3M_WT41, ont = "CC")))
-
-
-```
-
-```{r}
-CCGO1F_WT36
-CCGO1M_WT36
-
-CCGO2F_WT36
-CCGO2M_WT36
-
-CCGO3F_WT36
-CCGO3M_WT36
-```
-
-```{r}
-CCGO1F_WT41
-CCGO1M_WT41
-
-CCGO2F_WT41
-CCGO2M_WT41
-
-CCGO3F_WT41
-CCGO3M_WT41
-```
-
-
-### MF Analysis
-
-```{r}
-MFGO1F_WT36 = (summary(allgo(sigRes$res1F_WT36, ont = "MF")))
-MFGO1M_WT36 = (summary(allgo(sigRes$res1M_WT36, ont = "MF")))
-
-MFGO2F_WT36 = (summary(allgo(sigRes$res2F_WT36, ont = "MF")))
-MFGO2M_WT36 = (summary(allgo(sigRes$res2M_WT36, ont = "MF")))
-
-MFGO3F_WT36 = (summary(allgo(sigRes$res3F_WT36, ont = "MF")))
-MFGO3M_WT36 = (summary(allgo(sigRes$res3M_WT36, ont = "MF")))
-
-MFGO1F_WT41 = (summary(allgo(sigRes$res1F_WT41, ont = "MF")))
-MFGO1M_WT41 = (summary(allgo(sigRes$res1M_WT41, ont = "MF")))
-
-MFGO2F_WT41 = (summary(allgo(sigRes$res2F_WT41, ont = "MF")))
-MFGO2M_WT41 = (summary(allgo(sigRes$res2M_WT41, ont = "MF")))
-
-MFGO3F_WT41 = (summary(allgo(sigRes$res3F_WT41, ont = "MF")))
-MFGO3M_WT41 = (summary(allgo(sigRes$res3M_WT41, ont = "MF")))
-
-```
-
-```{r}
-MFGO1F_WT36
-MFGO1M_WT36
-
-MFGO2F_WT36
-MFGO2M_WT36
-
-MFGO3F_WT36
-MFGO3M_WT36
-```
-
-```{r}
-MFGO1F_WT41
-MFGO1M_WT41
-
-MFGO2F_WT41
-MFGO2M_WT41
-
-MFGO3F_WT41
-MFGO3M_WT41
-```
-
-## Comparing different TG lines
-
-### BP Analysis
-
-```{r}
-BPGO1F_3641 = summary(allgo(sigRes$res1F_3641))
-BPGO1M_3641 = summary(allgo(sigRes$res1M_3641))
-
-BPGO2F_3641 = summary(allgo(sigRes$res2F_3641))
-BPGO2M_3641 = summary(allgo(sigRes$res2M_3641))
-
-BPGO3F_3641 = summary(allgo(sigRes$res3F_3641))
-BPGO3M_3641 = summary(allgo(sigRes$res3M_3641))
-```
-
-```{r}
-BPGO1F_3641
-BPGO1M_3641
-```
-
-```{r}
-BPGO2F_3641
-BPGO2M_3641
-```
-
-```{r}
-BPGO3F_3641
-BPGO3M_3641
-```
-
-
-### CC Analysis
-
-```{r}
-CCGO1F_3641 = summary(allgo(sigRes$res1F_3641, ont = "CC"))
-CCGO1M_3641 = summary(allgo(sigRes$res1M_3641, ont = "CC"))
-
-CCGO2F_3641 = summary(allgo(sigRes$res2F_3641, ont = "CC"))
-CCGO2M_3641 = summary(allgo(sigRes$res2M_3641, ont = "CC"))
-
-CCGO3F_3641 = summary(allgo(sigRes$res3F_3641, ont = "CC"))
-CCGO3M_3641 = summary(allgo(sigRes$res3M_3641, ont = "CC"))
-```
-
-```{r}
-CCGO1F_3641
-CCGO1M_3641
-```
-
-```{r}
-CCGO2F_3641
-CCGO2M_3641
-```
-
-```{r}
-CCGO3F_3641
-CCGO3M_3641
-```
-
-### MF Analysis
-
-```{r}
-MFGO1F_3641 = summary(allgo(sigRes$res1F_3641, ont = "MF"))
-MFGO1M_3641 = summary(allgo(sigRes$res1M_3641, ont = "MF"))
-
-MFGO2F_3641 = summary(allgo(sigRes$res2F_3641, ont = "MF"))
-MFGO2M_3641 = summary(allgo(sigRes$res2M_3641, ont = "MF"))
-
-MFGO3F_3641 = summary(allgo(sigRes$res3F_3641, ont = "MF"))
-MFGO3M_3641 = summary(allgo(sigRes$res3M_3641, ont = "MF"))
-```
-
-```{r}
-MFGO1F_3641
-MFGO1M_3641
-```
-
-```{r}
-MFGO2F_3641
-MFGO2M_3641
-```
-
-```{r}
-MFGO3F_3641
-MFGO3M_3641
-```
-
-
-## Timepoint Comparisons
+## Applying to all results
 
 ```{r}
 
-BPGOF_36_21 = (summary(allgo(sigRes$resF_36_21)))
-BPGOM_36_21 = (summary(allgo(sigRes$resM_36_21)))
-BPGOF_36_32 = (summary(allgo(sigRes$resF_36_32)))
-BPGOM_36_32 = (summary(allgo(sigRes$resM_36_32)))
-BPGOF_36_31 = (summary(allgo(sigRes$resF_36_31)))
-BPGOM_36_31 = (summary(allgo(sigRes$resM_36_31)))
+genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
+
+genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.05, max = NULL)
+
+genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
 
 ```
 
-```{r}
-BPGOF_36_21
-BPGOM_36_21
-```
-
-```{r}
-BPGOF_36_32
-BPGOM_36_32
-```
-
-```{r}
-BPGOF_36_31
-BPGOM_36_31
-```
-
-```{r}
-
-CCGOF_36_21 = (summary(allgo(sigRes$resF_36_21, ont = "CC")))
-CCGOM_36_21 = (summary(allgo(sigRes$resM_36_21, ont = "CC")))
-CCGOF_36_32 = (summary(allgo(sigRes$resF_36_32, ont = "CC")))
-CCGOM_36_32 = (summary(allgo(sigRes$resM_36_32, ont = "CC")))
-CCGOF_36_31 = (summary(allgo(sigRes$resF_36_31, ont = "CC")))
-CCGOM_36_31 = (summary(allgo(sigRes$resM_36_31, ont = "CC")))
-
-```
-
-```{r}
-CCGOF_36_21
-CCGOM_36_21
-```
-
-```{r}
-CCGOF_36_32
-CCGOM_36_32
-```
-
-```{r}
-CCGOF_36_31
-CCGOM_36_31
-```
-
-```{r}
-
-MFGOF_36_21 = (summary(allgo(sigRes$resF_36_21, ont = "MF")))
-MFGOM_36_21 = (summary(allgo(sigRes$resM_36_21, ont = "MF")))
-MFGOF_36_32 = (summary(allgo(sigRes$resF_36_32, ont = "MF")))
-MFGOM_36_32 = (summary(allgo(sigRes$resM_36_32, ont = "MF")))
-MFGOF_36_31 = (summary(allgo(sigRes$resF_36_31, ont = "MF")))
-MFGOM_36_31 = (summary(allgo(sigRes$resM_36_31, ont = "MF")))
-
-```
-
-```{r}
-MFGOF_36_21
-MFGOM_36_21
-```
-
-```{r}
-MFGOF_36_32
-MFGOM_36_32
-```
-
-```{r}
-MFGOF_36_31
-MFGOM_36_31
-```
-
-
-```{r}
-
-BPGOF_41_21 = (summary(allgo(sigRes$resF_41_21)))
-BPGOM_41_21 = (summary(allgo(sigRes$resM_41_21)))
-BPGOF_41_32 = (summary(allgo(sigRes$resF_41_32)))
-BPGOM_41_32 = (summary(allgo(sigRes$resM_41_32)))
-BPGOF_41_31 = (summary(allgo(sigRes$resF_41_31)))
-BPGOM_41_31 = (summary(allgo(sigRes$resM_41_31)))
-
-```
-
-```{r}
-BPGOF_41_21
-BPGOM_41_21
-```
-
-```{r}
-BPGOF_41_32
-BPGOM_41_32
-```
-
-```{r}
-BPGOF_41_31
-BPGOM_41_31
-```
-
-```{r}
-
-CCGOF_41_21 = (summary(allgo(sigRes$resF_41_21, ont = "CC")))
-CCGOM_41_21 = (summary(allgo(sigRes$resM_41_21, ont = "CC")))
-CCGOF_41_32 = (summary(allgo(sigRes$resF_41_32, ont = "CC")))
-CCGOM_41_32 = (summary(allgo(sigRes$resM_41_32, ont = "CC")))
-CCGOF_41_31 = (summary(allgo(sigRes$resF_41_31, ont = "CC")))
-CCGOM_41_31 = (summary(allgo(sigRes$resM_41_31, ont = "CC")))
-
-```
-
-```{r}
-CCGOF_41_21
-CCGOM_41_21
-```
-
-```{r}
-CCGOF_41_32
-CCGOM_41_32
-```
-
-```{r}
-CCGOF_41_31
-CCGOM_41_31
-```
-
-```{r}
-
-MFGOF_41_21 = (summary(allgo(sigRes$resF_41_21, ont = "MF")))
-MFGOM_41_21 = (summary(allgo(sigRes$resM_41_21, ont = "MF")))
-MFGOF_41_32 = (summary(allgo(sigRes$resF_41_32, ont = "MF")))
-MFGOM_41_32 = (summary(allgo(sigRes$resM_41_32, ont = "MF")))
-MFGOF_41_31 = (summary(allgo(sigRes$resF_41_31, ont = "MF")))
-MFGOM_41_31 = (summary(allgo(sigRes$resM_41_31, ont = "MF")))
-
-```
-
-```{r}
-MFGOF_41_21
-MFGOM_41_21
-```
-
-```{r}
-MFGOF_41_32
-MFGOM_41_32
-```
-
-```{r}
-MFGOF_41_31
-MFGOM_41_31
-```
-
-# KEGG Pathway Enrichment analysis
+## Outputting as csv for easy consulting
 
 ```{r message=FALSE, warning=FALSE}
-library(pathview)
-library(gage)
-library(gageData)
-library(limma)
 
-# Importing data for GO path analysis and subsetting according to the kind of analysis needed, same with KEGG
+outputTidy = function(x, title) {
 
-data("go.sets.mm")
-data("go.subs.mm")
-data("kegg.sets.mm")
-data("sigmet.idx.mm")
+  max_length = max(sapply(x, length))
+  
+  padded_lists = lapply(x, function(y) {
+    length(y) = max_length  
+    return(y)
+  })
+  
+  # Convert the list of lists into a data frame
+  df = as.data.frame(padded_lists)
+  
+  # Step 3: Write the data frame to a CSV file
+  write.csv(df, title, row.names = FALSE)
+}
 
-gobpsets = go.sets.mm[go.subs.mm$BP] 
-goccsets = go.sets.mm[go.subs.mm$CC]
-gomfsets = go.sets.mm[go.subs.mm$MF]
+outputTidy(genesAll, "DEG_ALL.csv")
+outputTidy(genespAll, "DEG_P_ALL.csv")
+outputTidy(genesnAll, "DEG_N_ALL.csv")
 
-kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
+#When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
 
-# Df with names of KEGG pathway names, important for function ahead
-
-KEGGpathNames = getKEGGPathwayNames(species.KEGG = "mmu")
 
 ```
 
+## Purkinje Cell Markers
+
 ```{r}
+PC_markers = read_excel("pc_markers.xlsx",col_names = FALSE)
 
-keggPathAnal = function(x, top = 10, output = FALSE) {
+res1F_WT36[reList$res1F_WT36$MGI %in% PC_markers$...1,]
 
-  # Extract and name fold changes
-  x = x[(x$log2FoldChange > 0.5 | x$log2FoldChange < -0.5) & x$padj < 0.5,]
+pc_mark = function(x){
   
-  foldchanges = x$log2FoldChange
-  names(foldchanges) = x$Gene_ID
-  
-  # KEGG pathway analysis
-  keggres = gage(exprs = foldchanges, gsets = kegg.sets.mm, same.dir = TRUE)
-  
-  # Select top pathways
-  pathways = data.frame(id = rownames(keggres$less), keggres$less) %>%
-    as_tibble() %>%
-    filter(row_number() <= top) %>%
-    .$id %>% 
-    as.character()
-  
-  # ID variables with only first 8 characters
-  keggIDs = substr(pathways, start = 1, stop = 8)
-  
-  # Handle output argument
-  if (output == TRUE){
-  
-  # Run pathview and specify output directory
-  sapply(keggIDs, function(pid) {
-    tryCatch({
-      pathview(gene.data = foldchanges, pathway.id = pid, species = "mmu", kegg.dir = "./KEGG_Pathways", low = list(gene = "red"), high = list(gene = "green"))
-    }, error = function(e) {
-      message("Error processing pathway ID: ", pid)
-      message("Error message: ", e$message)
-    })
-  })
-  
-  # Return a df with the names of top 10 pathways, for easy Rmd visualization
-  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
-  
-  return(matching_pathways)
-  
+  # Ensure 'MGI' column exists in the DESeq2 results object (x)
+  if (!"MGI" %in% colnames(x)) {
+    stop("Error: 'MGI' column not found in the DESeq2 results object")
   }
   
-  # When output FALSE just returns df with the name of top pathways
-  else {
-  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
+  # Subset 'x' where 'MGI' is present in the PC_markers column
+  x_subset = x[x$MGI %in% PC_markers[[1]], ]
   
-  return(matching_pathways)
-  }
+  x_subset = (x_subset[(x_subset$log2FoldChange > 0.5 | x_subset$log2FoldChange < -0.5) & x_subset$padj < 0.05,])
+  
+  x_subset = na.omit(x_subset)
+  
+  return(x_subset)
 }
 ```
 
-## Comparing WT and TG mice (add output = TRUE argument if you want to output images)
-
-### WT v 36
-
 ```{r}
-keggPathAnal(reList$res1F_WT36)
+pc_mark(reList$res1F_WT36)
+pc_mark(reList$res1M_WT36)
+
+pc_mark(reList$res2F_WT36)
+pc_mark(reList$res2M_WT36)
+
+pc_mark(reList$res3F_WT36)
+pc_mark(reList$res3M_WT36)
+
+pc_mark(reList$res1F_WT41)
+pc_mark(reList$res1M_WT41)
+
+pc_mark(reList$res2F_WT41)
+pc_mark(reList$res2M_WT41)
+
+pc_mark(reList$res3F_WT41)
+pc_mark(reList$res3M_WT41)
+
 ```
 
-```{r}
-keggPathAnal(reList$res1M_WT36)
-```
-
-```{r}
-keggPathAnal(reList$res2F_WT36)
-```
-
-```{r}
-keggPathAnal(reList$res2M_WT36)
-```
-
-```{r}
-keggPathAnal(reList$res3F_WT36)
-```
-
-```{r}
-keggPathAnal(reList$res3M_WT36)
-```
-
-### WT v 41
-
-```{r}
-keggPathAnal(reList$res1F_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res1M_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res2F_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res2M_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res3F_WT41)
-```
-
-```{r}
-keggPathAnal(reList$res3M_WT41)
-```
-
-## Comparing TG lines
-
-```{r}
-keggPathAnal(reList$res1F_3641)
-```
-
-```{r}
-keggPathAnal(reList$res1M_3641)
-```
-
-```{r}
-keggPathAnal(reList$res2F_3641)
-```
-
-```{r}
-keggPathAnal(reList$res2M_3641)
-```
-
-```{r}
-keggPathAnal(reList$res3F_3641)
-```
-
-```{r}
-keggPathAnal(reList$res3M_3641)
-```
-
-## Comparing Timepoints
-
-### WT
-
-```{r}
-keggPathAnal(reList$resF_WT21)
-```
-
-```{r}
-keggPathAnal(reList$resM_WT21)
-```
-
-```{r}
-keggPathAnal(reList$resF_WT32)
-```
-
-```{r}
-keggPathAnal(reList$resM_WT32)
-```
-
-```{r}
-keggPathAnal(reList$resF_WT31)
-```
-
-```{r}
-keggPathAnal(reList$resM_WT31)
-```
-### 36
-
-```{r}
-keggPathAnal(reList$resF_36_21)
-```
-
-```{r}
-keggPathAnal(reList$resM_36_21)
-```
-
-```{r}
-keggPathAnal(reList$resF_36_31)
-```
-
-```{r}
-keggPathAnal(reList$resM_36_31)
-```
-
-```{r}
-keggPathAnal(reList$resF_36_32)
-```
-
-```{r}
-keggPathAnal(reList$resM_36_32)
-```
-
-### 41
-
-```{r}
-keggPathAnal(reList$resF_41_21)
-```
-
-```{r}
-keggPathAnal(reList$resM_41_21)
-```
-
-```{r}
-keggPathAnal(reList$resF_41_31)
-```
-
-```{r}
-keggPathAnal(reList$resM_41_31)
-```
-
-```{r}
-keggPathAnal(reList$resF_41_32)
-```
-
-```{r}
-keggPathAnal(reList$resM_41_32)
-```
