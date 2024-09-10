@@ -1,0 +1,1249 @@
+---
+title: "GO_Analysis_RBPs"
+author: "Lorenzo.MCM"
+date: "2024-07-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Initial Setup
+
+## Installing and loading packages.
+
+```{r eval=FALSE}
+
+install.packages(c('dplyr','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
+```
+
+```{r eval=FALSE}
+BiocManager::install(c('DESeq2', 'AnnotationDbi', 'vsn', 'org.Mm.eg.db', 'apeglm', 'select'))
+
+BiocManager::install("topGO")
+```
+
+```{r message=FALSE}
+library(readxl)
+library(DESeq2)
+library(ggplot2)
+library(gplots)
+library(pheatmap)
+library(vsn)
+library(Glimma)
+library(regionReport)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(AnnotationDbi)
+library(dplyr)
+```
+
+## Importing data and tidying up resulting data frame so rows are ID'd by Gene Symbol.NAs omitted for comparison with Gene list
+
+```{r message=FALSE, warning=FALSE}
+
+# Setting Working Directory to the folder which contains this .Rmd file
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# Importing main reads file
+
+data = as.data.frame(read_excel("Reads_genes.xlsx"))
+
+# Keeping only the columns with MGI, RefSeq ID and Gene symbols + raw counts, omitting NAs 
+
+reads = data %>% select(MGI, Gene_ID, Gene_Symbol, contains("Count"))
+
+reads = as.data.frame(reads)
+
+reads = na.omit(reads)
+
+rbps = reads
+
+```
+
+## Naming conditions and final set up of rbps object
+
+```{r message=FALSE, warning=FALSE}
+
+# Naming rows in the rbps object after their MGI ID and removing all columns except those with the counts for each condition
+
+rownames(rbps) = rbps$MGI
+
+rbps = rbps[,-c(1,2,3)]
+
+# Naming raw counts columns after their conditions, based on an external file
+
+colnames(rbps) = (read_excel("conditions.xlsx", col_names = FALSE))[1,]
+              
+```
+
+# Setting up for DESeq 
+## Intermediate objects for selecting conditions for comparisons through DESeq
+
+```{r message=FALSE, warning=FALSE}
+
+#Splitting conditions for line and sex
+rbpsF_WT = rbps %>% select(contains("FWT"))
+rbpsM_WT = rbps %>% select(contains("MWT"))
+rbpsF_TG = rbps %>% select(contains("F36"), contains("F41"))
+rbpsM_TG = rbps %>% select(contains("M36"), contains("M41"))
+rbpsF_36 = rbps %>% select(contains("F36"))
+rbpsM_36 = rbps %>% select(contains("M36"))
+rbpsF_41 = rbps %>% select(contains("F41"))
+rbpsM_41 = rbps %>% select(contains("M41"))
+
+#Final split into timepoints
+T1F_41 = rbpsF_41[,grep("^1",names(rbpsF_41), value = TRUE)]
+T1M_41 = rbpsM_41[,grep("^1",names(rbpsM_41), value = TRUE)]
+T1F_WT = rbpsF_WT[,grep("^1",names(rbpsF_WT), value = TRUE)]
+T1M_WT = rbpsM_WT[,grep("^1",names(rbpsM_WT), value = TRUE)]
+T1F_36 = rbpsF_36[,grep("^1",names(rbpsF_36), value = TRUE)]
+T1M_36 = rbpsM_36[,grep("^1",names(rbpsM_36), value = TRUE)]
+T1F_TG = rbpsF_TG[,grep("^1",names(rbpsF_TG), value = TRUE)]
+T1M_TG = rbpsM_TG[,grep("^1",names(rbpsM_TG), value = TRUE)]
+
+T2F_41 = rbpsF_41[,grep("^2",names(rbpsF_41), value = TRUE)]
+T2M_41 = rbpsM_41[,grep("^2",names(rbpsM_41), value = TRUE)]
+T2F_WT = rbpsF_WT[,grep("^2",names(rbpsF_WT), value = TRUE)]
+T2M_WT = rbpsM_WT[,grep("^2",names(rbpsM_WT), value = TRUE)]
+T2F_36 = rbpsF_36[,grep("^2",names(rbpsF_36), value = TRUE)]
+T2M_36 = rbpsM_36[,grep("^2",names(rbpsM_36), value = TRUE)]
+T2F_TG = rbpsF_TG[,grep("^2",names(rbpsF_TG), value = TRUE)]
+T2M_TG = rbpsM_TG[,grep("^2",names(rbpsM_TG), value = TRUE)]
+
+T3F_41 = rbpsF_41[,grep("^3",names(rbpsF_41), value = TRUE)]
+T3M_41 = rbpsM_41[,grep("^3",names(rbpsM_41), value = TRUE)]
+T3F_WT = rbpsF_WT[,grep("^3",names(rbpsF_WT), value = TRUE)]
+T3M_WT = rbpsM_WT[,grep("^3",names(rbpsM_WT), value = TRUE)]
+T3F_36 = rbpsF_36[,grep("^3",names(rbpsF_36), value = TRUE)]
+T3M_36 = rbpsM_36[,grep("^3",names(rbpsM_36), value = TRUE)]
+T3F_TG = rbpsF_TG[,grep("^3",names(rbpsF_TG), value = TRUE)]
+T3M_TG = rbpsM_TG[,grep("^3",names(rbpsM_TG), value = TRUE)]
+
+#Binding final objects for comparison between different conditions (obj names = Timepoint-Sex-Line-conditions)
+T1F_WT36 = bind_cols(T1F_WT, T1F_36)
+T1M_WT36 = bind_cols(T1M_WT, T1M_36)
+T1F_WT41 = bind_cols(T1F_WT, T1F_41)
+T1M_WT41 = bind_cols(T1M_WT, T1M_41)
+T1F_3641 = bind_cols(T1F_36, T1F_41)
+T1M_3641 = bind_cols(T1M_36, T1M_41)
+T1F_WTG = bind_cols(T1F_WT, T1F_TG)
+T1M_WTG = bind_cols(T1M_WT, T1M_TG)
+  
+T2F_WT36 = bind_cols(T2F_WT, T2F_36)
+T2M_WT36 = bind_cols(T2M_WT, T2M_36)
+T2F_WT41 = bind_cols(T2F_WT, T2F_41)
+T2M_WT41 = bind_cols(T2M_WT, T2M_41)
+T2F_3641 = bind_cols(T2F_36, T2F_41)
+T2M_3641 = bind_cols(T2M_36, T2M_41)
+T2F_WTG = bind_cols(T2F_WT, T2F_TG)
+T2M_WTG = bind_cols(T2M_WT, T2M_TG)
+
+  
+T3F_WT41 = bind_cols(T3F_WT, T3F_41)
+T3M_WT41 = bind_cols(T3M_WT, T3M_41)
+T3F_WT36 = bind_cols(T3F_WT, T3F_36)
+T3M_WT36 = bind_cols(T3M_WT, T3M_36)
+T3F_3641 = bind_cols(T3F_36, T3F_41)
+T3M_3641 = bind_cols(T3M_36, T3M_41)
+T3F_WTG = bind_cols(T3F_WT, T3F_TG)
+T3M_WTG = bind_cols(T3M_WT, T3M_TG)
+
+```
+
+## setting up dfs for DESeq design 
+```{r}
+#timepoint lists
+tpF_WT = c("1","1","1","2","2","2","3","3","3")
+tpM_WT = c("1","1","1","2","2","2","3","3","3")
+tpF_TG = c("1","1","1","1","2","2","2","3","1","1","1","2","2","2","3","3")
+tpM_TG = c("1","1","2","2","2","3","3","3","3","3","1","1","1","2","2","2","3","3","3","3")
+
+tpF_36 = c("1","1","1","1","2","2","2","3")
+tpM_36 = c("1","1","2","2","2","3","3","3","3","3")
+
+tpF_41 = c("1","1","1","2","2","2","3","3")
+tpM_41 = c("1","1","1","2","2","2","3","3","3","3")
+
+#line list
+
+l1F_3641 = c("36","36","36","36","41","41","41")
+l1M_3641 = c("36","36","41","41","41")
+
+l1F_WTG = c("WT","WT","WT","TG","TG","TG","TG","TG","TG","TG")
+l1M_WTG = c("WT","WT","WT","TG","TG","TG","TG","TG")
+
+l1F_WT36 = c("WT","WT","WT","36","36","36","36")
+l1M_WT36 = c("WT","WT","WT","36","36")
+
+l1F_WT41 = c("WT","WT","WT","41","41","41")
+l1M_WT41 = c("WT","WT","WT","41","41","41")
+
+l2F_WTG = c("WT","WT","WT","TG","TG","TG","TG","TG","TG")
+l2M_WTG = c("WT","WT","WT","TG","TG","TG","TG","TG","TG")
+
+l2F_WT36 = c("WT","WT","WT","36","36","36")
+l2M_WT36 = c("WT","WT","WT","36","36","36")
+
+l2F_WT41 = c("WT","WT","WT","41","41","41")
+l2M_WT41 = c("WT","WT","WT","41","41","41")
+
+l2F_3641 = c("36","36","36","41","41","41")
+l2M_3641 = c("36","36","36","41","41","41")
+
+l3F_WTG = c("WT","WT","WT","TG","TG","TG")
+l3M_WTG = c("WT","WT","WT","TG","TG","TG","TG","TG","TG","TG","TG","TG")
+
+l3F_WT36 = c("WT","WT","WT","36")
+l3M_WT36 = c("WT","WT","WT","36","36","36","36","36")
+
+l3F_WT41 = c("WT","WT","WT","41","41")
+l3M_WT41 = c("WT","WT","WT","41","41","41","41")
+
+l3F_3641 = c("36","41","41")
+l3M_3641 = c("36","36","36","36","36","41","41","41", "41")
+
+# Binding timepoints and line lists for each condition
+
+c1F_WTG = as.data.frame(cbind(colnames(T1F_WTG),l1F_WTG))
+c1M_WTG = as.data.frame(cbind(colnames(T1M_WTG),l1M_WTG))
+
+c1F_WT36 = as.data.frame(cbind(colnames(T1F_WT36),l1F_WT36))
+c1M_WT36 = as.data.frame(cbind(colnames(T1M_WT36),l1M_WT36))
+
+c1F_WT41 = as.data.frame(cbind(colnames(T1F_WT41),l1F_WT41))
+c1M_WT41 = as.data.frame(cbind(colnames(T1M_WT41),l1M_WT41))
+
+c1F_3641 = as.data.frame(cbind(colnames(T1F_3641),l1F_3641))
+c1M_3641 = as.data.frame(cbind(colnames(T1M_3641),l1M_3641))
+
+c2F_WTG = as.data.frame(cbind(colnames(T2F_WTG),l2F_WTG))
+c2M_WTG = as.data.frame(cbind(colnames(T2M_WTG),l2M_WTG))
+
+c2F_WT36 = as.data.frame(cbind(colnames(T2F_WT36),l2F_WT36))
+c2M_WT36 = as.data.frame(cbind(colnames(T2M_WT36),l2M_WT36))
+
+c2F_WT41 = as.data.frame(cbind(colnames(T2F_WT41),l2F_WT41))
+c2M_WT41 = as.data.frame(cbind(colnames(T2M_WT41),l2M_WT41))
+
+c2F_3641 = as.data.frame(cbind(colnames(T2F_3641),l2F_3641))
+c2M_3641 = as.data.frame(cbind(colnames(T2M_3641),l2M_3641))
+
+c3F_WTG = as.data.frame(cbind(colnames(T3F_WTG),l3F_WTG))
+c3M_WTG = as.data.frame(cbind(colnames(T3M_WTG),l3M_WTG))
+
+c3F_WT36 = as.data.frame(cbind(colnames(T3F_WT36),l3F_WT36))
+c3M_WT36 = as.data.frame(cbind(colnames(T3M_WT36),l3M_WT36))
+
+c3F_WT41 = as.data.frame(cbind(colnames(T3F_WT41),l3F_WT41))
+c3M_WT41 = as.data.frame(cbind(colnames(T3M_WT41),l3M_WT41))
+
+c3F_3641 = as.data.frame(cbind(colnames(T3F_3641),l3F_3641))
+c3M_3641 = as.data.frame(cbind(colnames(T3M_3641),l3M_3641))
+
+cF_WT = as.data.frame(cbind(colnames(rbpsF_WT),tpF_WT))
+cM_WT = as.data.frame(cbind(colnames(rbpsM_WT),tpM_WT))
+
+cF_TG = as.data.frame(cbind(colnames(rbpsF_TG),tpF_TG))
+cM_TG = as.data.frame(cbind(colnames(rbpsM_TG),tpM_TG))
+
+cF_36 = as.data.frame(cbind(colnames(rbpsF_36),tpF_36))
+cM_36 = as.data.frame(cbind(colnames(rbpsM_36),tpM_36))
+
+cF_41 = as.data.frame(cbind(colnames(rbpsF_41), tpF_41))
+cM_41 = as.data.frame(cbind(colnames(rbpsM_41), tpM_41))
+
+
+```
+
+## Conversion into DESeqDataSets
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+dds1F_WTG = DESeqDataSetFromMatrix(countData = T1F_WTG,colData = c1F_WTG,
+                                  design = ~l1F_WTG)
+dds1M_WTG = DESeqDataSetFromMatrix(countData = T1M_WTG,colData = c1M_WTG,
+                                  design = ~l1M_WTG)
+
+dds1F_WT36 = DESeqDataSetFromMatrix(countData = T1F_WT36, colData = c1F_WT36,
+                                 design = ~l1F_WT36)
+dds1M_WT36 = DESeqDataSetFromMatrix(countData = T1M_WT36, colData = c1M_WT36,
+                                 design = ~l1M_WT36)
+
+dds1F_WT41 = DESeqDataSetFromMatrix(countData = T1F_WT41,colData = c1F_WT41,
+                                 design = ~l1F_WT41)
+dds1M_WT41 = DESeqDataSetFromMatrix(countData = T1M_WT41,colData = c1M_WT41,
+                                 design = ~l1M_WT41)
+
+dds1F_3641 = DESeqDataSetFromMatrix(countData = T1F_3641,colData = c1F_3641,
+                                    design = ~l1F_3641)
+dds1M_3641 = DESeqDataSetFromMatrix(countData = T1M_3641,colData = c1M_3641,
+                                    design = ~l1M_3641)
+
+dds2F_WTG = DESeqDataSetFromMatrix(countData = T2F_WTG,colData = c2F_WTG,
+                                  design = ~l2F_WTG)
+dds2M_WTG = DESeqDataSetFromMatrix(countData = T2M_WTG,colData = c2M_WTG,
+                                  design = ~l2M_WTG)
+
+dds2F_WT36 = DESeqDataSetFromMatrix(countData = T2F_WT36,colData = c2F_WT36,
+                                 design = ~l2F_WT36)
+dds2M_WT36 = DESeqDataSetFromMatrix(countData = T2M_WT36,colData = c2M_WT36,
+                                 design = ~l2M_WT36)
+
+dds2F_WT41 = DESeqDataSetFromMatrix(countData = T2F_WT41,colData = c2F_WT41,
+                                 design = ~l2F_WT41)
+dds2M_WT41 = DESeqDataSetFromMatrix(countData = T2M_WT41,colData = c2M_WT41,
+                                 design = ~l2M_WT41)
+
+dds2F_3641 = DESeqDataSetFromMatrix(countData = T2F_3641,colData = c2F_3641,
+                                    design = ~l2F_3641)
+dds2M_3641 = DESeqDataSetFromMatrix(countData = T2M_3641,colData = c2M_3641,
+                                    design = ~l2M_3641)
+
+dds3F_WTG = DESeqDataSetFromMatrix(countData = T3F_WTG,colData = c3F_WTG,
+                                  design = ~l3F_WTG)
+dds3M_WTG = DESeqDataSetFromMatrix(countData = T3M_WTG,colData = c3M_WTG,
+                                  design = ~l3M_WTG)
+
+dds3F_WT36 = DESeqDataSetFromMatrix(countData = T3F_WT36,colData = c3F_WT36,
+                                 design = ~l3F_WT36)
+dds3M_WT36 = DESeqDataSetFromMatrix(countData = T3M_WT36,colData = c3M_WT36,
+                                 design = ~l3M_WT36)
+
+dds3F_WT41 = DESeqDataSetFromMatrix(countData = T3F_WT41,colData = c3F_WT41,
+                                 design = ~l3F_WT41)
+dds3M_WT41 = DESeqDataSetFromMatrix(countData = T3M_WT41, colData = c3M_WT41,
+                                 design = ~l3M_WT41)
+
+dds3F_3641 = DESeqDataSetFromMatrix(countData = T3F_3641,colData = c3F_3641,
+                                    design = ~l3F_3641)
+dds3M_3641 = DESeqDataSetFromMatrix(countData = T3M_3641,colData = c3M_3641,
+                                    design = ~l3M_3641)
+
+ddsF_WT = DESeqDataSetFromMatrix(countData = rbpsF_WT,colData = cF_WT,
+                                design = ~tpF_WT)
+ddsM_WT = DESeqDataSetFromMatrix(countData = rbpsM_WT,colData = cM_WT,
+                                design = ~tpM_WT)
+
+ddsF_TG = DESeqDataSetFromMatrix(countData = rbpsF_TG,colData = cF_TG,
+                                design = ~tpF_TG)
+ddsM_TG = DESeqDataSetFromMatrix(countData = rbpsM_TG,colData = cM_TG,
+                                design = ~tpM_TG)
+
+ddsF_36 = DESeqDataSetFromMatrix(countData = rbpsF_36,colData = cF_36,
+                                design = ~tpF_36)
+ddsM_36 = DESeqDataSetFromMatrix(countData = rbpsM_36,colData = cM_36,
+                                design = ~tpM_36)
+
+ddsF_41 = DESeqDataSetFromMatrix(countData = rbpsF_41,colData = cF_41,
+                                design = ~tpF_41)
+ddsM_41 = DESeqDataSetFromMatrix(countData = rbpsM_41,colData = cM_41,
+                                design = ~tpM_41)
+```
+
+## Running DESeq
+
+```{r message=FALSE, warning=FALSE}
+
+dds1F_WTG = DESeq(dds1F_WTG)
+dds1M_WTG = DESeq(dds1M_WTG)
+
+dds1F_WT36 = DESeq(dds1F_WT36)
+dds1M_WT36 = DESeq(dds1M_WT36)
+
+dds1F_WT41 = DESeq(dds1F_WT41)
+dds1M_WT41 = DESeq(dds1M_WT41)
+
+dds1F_3641 = DESeq(dds1F_3641)
+dds1M_3641 = DESeq(dds1M_3641)
+
+dds2F_WTG = DESeq(dds2F_WTG)
+dds2M_WTG = DESeq(dds2M_WTG)
+
+dds2F_WT36 = DESeq(dds2F_WT36)
+dds2M_WT36 = DESeq(dds2M_WT36)
+
+dds2F_WT41 = DESeq(dds2F_WT41)
+dds2M_WT41 = DESeq(dds2M_WT41)
+
+dds2F_3641 = DESeq(dds2F_3641)
+dds2M_3641 = DESeq(dds2M_3641)
+
+dds3F_WTG = DESeq(dds3F_WTG)
+dds3M_WTG = DESeq(dds3M_WTG)
+
+dds3F_WT36 = DESeq(dds3F_WT36)
+dds3M_WT36 = DESeq(dds3M_WT36)
+
+dds3F_WT41 = DESeq(dds3F_WT41)
+dds3M_WT41 = DESeq(dds3M_WT41)
+
+dds3F_3641 = DESeq(dds3F_3641)
+dds3M_3641 = DESeq(dds3M_3641)
+
+ddsF_WT = DESeq(ddsF_WT)
+ddsM_WT = DESeq(ddsM_WT)
+
+ddsF_TG = DESeq(ddsF_TG)
+ddsM_TG = DESeq(ddsM_TG)
+
+ddsF_36 = DESeq(ddsF_36)
+ddsM_36 = DESeq(ddsM_36)
+
+ddsF_41 = DESeq(ddsF_41)
+ddsM_41 = DESeq(ddsM_41)
+```
+
+# Reports on differentially expressed (Padj < 0.5) genes for easy visualization, commented to allow Knitting
+
+```{r eval=FALSE, include=FALSE}
+# Commented to allow Markdown knitting, must uncomment and open output in browser for visualization
+
+#limmaVolcano(x = dds3F_WTG, counts = T3F_WTG, groups = c3F_WTG$l3F_WTG)
+
+#DESeq2Report(dds = dds3F_WTG, project = "T3 Female TG v WT", intgroup = c("l3F_WTG"), output = "T3_F_WTG")
+```
+
+# Preparing readable output
+
+## Converting to result objects
+
+```{r}
+
+res1F_WTG = results(dds1F_WTG, contrast = c("l1F_WTG", "TG", "WT"))
+res1M_WTG = results(dds1M_WTG, contrast = c("l1M_WTG", "TG", "WT"))
+
+res1F_WT36 = results(dds1F_WT36, contrast = c("l1F_WT36", "36", "WT"))
+res1M_WT36 = results(dds1M_WT36, contrast = c("l1M_WT36", "36", "WT"))
+
+res1F_WT41 = results(dds1F_WT41, contrast = c("l1F_WT41", "41", "WT"))
+res1M_WT41 = results(dds1M_WT41, contrast = c("l1M_WT41", "41", "WT"))
+
+res1F_3641 = results(dds1F_3641, contrast = c("l1F_3641", "41", "36"))
+res1M_3641 = results(dds1M_3641, contrast = c("l1M_3641", "41", "36"))
+
+res2F_WTG = results(dds2F_WTG, contrast = c("l2F_WTG", "TG", "WT"))
+res2M_WTG = results(dds2M_WTG, contrast = c("l2M_WTG", "TG", "WT"))
+
+res2F_WT36 = results(dds2F_WT36, contrast = c("l2F_WT36", "36", "WT"))
+res2M_WT36 = results(dds2M_WT36, contrast = c("l2M_WT36", "36", "WT"))
+
+res2F_WT41 = results(dds2F_WT41, contrast = c("l2F_WT41", "41", "WT"))
+res2M_WT41 = results(dds2M_WT41, contrast = c("l2M_WT41", "41", "WT"))
+
+res2F_3641 = results(dds2F_3641, contrast = c("l2F_3641", "41", "36"))
+res2M_3641 = results(dds2M_3641, contrast = c("l2M_3641", "41", "36"))
+
+res3F_WTG = results(dds3F_WTG, contrast = c("l3F_WTG", "TG", "WT"))
+res3M_WTG = results(dds3M_WTG, contrast = c("l3M_WTG", "TG", "WT"))
+
+res3F_WT36 = results(dds3F_WT36, contrast = c("l3F_WT36", "36", "WT"))
+res3M_WT36 = results(dds3M_WT36, contrast = c("l3M_WT36", "36", "WT"))
+
+res3F_WT41 = results(dds3F_WT41, contrast = c("l3F_WT41", "41", "WT"))
+res3M_WT41 = results(dds3M_WT41, contrast = c("l3M_WT41", "41", "WT"))
+
+res3F_3641 = results(dds3F_3641, contrast = c("l3F_3641","41", "36"))
+res3M_3641 = results(dds3M_3641, contrast = c("l3M_3641","41", "36"))
+                    
+resF_WT31 = results(ddsF_WT, contrast = c("tpF_WT","3", "1"))
+resF_WT21 = results(ddsF_WT, contrast = c("tpF_WT","2", "1"))
+resF_WT32 = results(ddsF_WT, contrast = c("tpF_WT","3", "2"))
+
+resM_WT31 = results(ddsM_WT, contrast = c("tpM_WT","3","1"))
+resM_WT21 = results(ddsM_WT, contrast = c("tpM_WT","2","1"))
+resM_WT32 = results(ddsM_WT, contrast = c("tpM_WT","3","2"))
+
+resF_TG31 = results(ddsF_TG, contrast = c("tpF_TG","3","1"))
+resF_TG21 = results(ddsF_TG, contrast = c("tpF_TG","2","1"))
+resF_TG32 = results(ddsF_TG, contrast = c("tpF_TG","3","2"))
+
+resM_TG31 = results(ddsM_TG, contrast = c("tpM_TG","3","1"))
+resM_TG21 = results(ddsM_TG, contrast = c("tpM_TG","2","1"))
+resM_TG32 = results(ddsM_TG, contrast = c("tpM_TG","3","2"))
+
+resF_36_31 = results(ddsF_36, contrast = c("tpF_36","3","1"))
+resF_36_21 = results(ddsF_36, contrast = c("tpF_36","2","1"))
+resF_36_32 = results(ddsF_36, contrast = c("tpF_36","3","2"))
+
+resM_36_31 = results(ddsM_36, contrast = c("tpM_36","3","1"))
+resM_36_21 = results(ddsM_36, contrast = c("tpM_36","2","1"))
+resM_36_32 = results(ddsM_36, contrast = c("tpM_36","3","2"))
+
+resF_41_31 = results(ddsF_41, contrast = c("tpF_41","3","1"))
+resF_41_21 = results(ddsF_41, contrast = c("tpF_41","2","1"))
+resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
+
+resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
+resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
+resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
+```
+
+# GO Analysis
+
+```{r message=FALSE}
+library(GO.db)
+library(GOstats)
+```
+## Converting results to dfs, adding MGI,
+entrez and Symbol as columns 
+
+```{r message=FALSE}
+
+# Making a list out of all results objects
+
+allObj = ls()  
+
+reObj = allObj[grep("^res", allObj)]
+
+reList = mget(reObj)
+
+# Adding back MGI, RefSeq ID and symbol columns to all results objects
+
+reList = lapply(reList, function(res) {
+
+  df = as.data.frame(res)
+
+  df$MGI = rownames(df)
+  
+  df = merge(df, reads[, c("MGI", "Gene_ID", "Gene_Symbol")], by = "MGI", all.x = TRUE)
+  
+  rownames(df) <- NULL
+  
+  return(df)
+})
+
+```
+
+```{r}
+#Subsetting only genes with a padj below 0.05 from results
+sigRes = lapply(reList, function(x) as.data.frame(subset(x, padj < 0.05)))
+
+allgo = function(x, lfcThreshold = 2, padjThreshold = 0.05, cutOff = 0.05, ont = "BP"){
+  
+  selectGenes = unique(x$Gene_ID[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold)])
+  
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
+  
+  universe <- unique(x$Gene_ID)
+  
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
+    
+  return(hyperGTest(Params))
+}
+
+
+```
+
+## GO graphs
+
+```{r fig.height=20, fig.width=20}
+
+# Function for listing significant genes of a result object
+
+sigGenes = function(x, lfcThreshold = 0.5, padjThreshold = 0.05){
+  
+  selectGenes = unique(x$Gene_ID[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold)])
+  return(selectGenes)
+}
+
+# Applying the function to all results 
+sigAll = lapply(reList, sigGenes)
+
+# Now we can apply the GO graph function to each condition we want, important to have large fig. dimensions at the start of the chunk for the sake of readability
+
+plotGOgraph(x = (enrichGO(sigAll$res1F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res1M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r}
+plotGOgraph(x = (enrichGO(sigAll$res1F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res1M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+
+
+## Comparing WT and TG mice (these take ~5 minutes to complete per chunk, depending on your CPU single core performance)
+
+### BP Analysis
+```{r}
+BPGO1F_WT36 = (summary(allgo(sigRes$res1F_WT36)))
+BPGO1M_WT36 = (summary(allgo(sigRes$res1M_WT36)))
+
+BPGO2F_WT36 = (summary(allgo(sigRes$res2F_WT36)))
+BPGO2M_WT36 = (summary(allgo(sigRes$res2M_WT36)))
+
+BPGO3F_WT36 = (summary(allgo(sigRes$res3F_WT36)))
+BPGO3M_WT36 = (summary(allgo(sigRes$res3M_WT36)))
+
+BPGO1F_WT41 = (summary(allgo(sigRes$res1F_WT41)))
+BPGO1M_WT41 = (summary(allgo(sigRes$res1M_WT41)))
+
+BPGO2F_WT41 = (summary(allgo(sigRes$res2F_WT41)))
+BPGO2M_WT41 = (summary(allgo(sigRes$res2M_WT41)))
+
+BPGO3F_WT41 = (summary(allgo(sigRes$res3F_WT41)))
+BPGO3M_WT41 = (summary(allgo(sigRes$res3M_WT41)))
+
+```
+
+```{r}
+BPGO1F_WT36
+BPGO1M_WT36
+
+BPGO2F_WT36
+BPGO2M_WT36
+
+BPGO3F_WT36
+BPGO3M_WT36
+```
+
+```{r}
+BPGO1F_WT41
+BPGO1M_WT41
+
+BPGO2F_WT41
+BPGO2M_WT41
+
+BPGO3F_WT41
+BPGO3M_WT41
+```
+
+### CC Analysis
+
+```{r}
+CCGO1F_WT36 = (summary(allgo(sigRes$res1F_WT36, ont = "CC")))
+CCGO1M_WT36 = (summary(allgo(sigRes$res1M_WT36, ont = "CC")))
+
+CCGO2F_WT36 = (summary(allgo(sigRes$res2F_WT36, ont = "CC")))
+CCGO2M_WT36 = (summary(allgo(sigRes$res2M_WT36, ont = "CC")))
+
+CCGO3F_WT36 = (summary(allgo(sigRes$res3F_WT36, ont = "CC")))
+CCGO3M_WT36 = (summary(allgo(sigRes$res3M_WT36, ont = "CC")))
+
+CCGO1F_WT41 = (summary(allgo(sigRes$res1F_WT41, ont = "CC")))
+CCGO1M_WT41 = (summary(allgo(sigRes$res1M_WT41, ont = "CC")))
+
+CCGO2F_WT41 = (summary(allgo(sigRes$res2F_WT41, ont = "CC")))
+CCGO2M_WT41 = (summary(allgo(sigRes$res2M_WT41, ont = "CC")))
+
+CCGO3F_WT41 = (summary(allgo(sigRes$res3F_WT41, ont = "CC")))
+CCGO3M_WT41 = (summary(allgo(sigRes$res3M_WT41, ont = "CC")))
+
+
+```
+
+```{r}
+CCGO1F_WT36
+CCGO1M_WT36
+
+CCGO2F_WT36
+CCGO2M_WT36
+
+CCGO3F_WT36
+CCGO3M_WT36
+```
+
+```{r}
+CCGO1F_WT41
+CCGO1M_WT41
+
+CCGO2F_WT41
+CCGO2M_WT41
+
+CCGO3F_WT41
+CCGO3M_WT41
+```
+
+
+### MF Analysis
+
+```{r}
+MFGO1F_WT36 = (summary(allgo(sigRes$res1F_WT36, ont = "MF")))
+MFGO1M_WT36 = (summary(allgo(sigRes$res1M_WT36, ont = "MF")))
+
+MFGO2F_WT36 = (summary(allgo(sigRes$res2F_WT36, ont = "MF")))
+MFGO2M_WT36 = (summary(allgo(sigRes$res2M_WT36, ont = "MF")))
+
+MFGO3F_WT36 = (summary(allgo(sigRes$res3F_WT36, ont = "MF")))
+MFGO3M_WT36 = (summary(allgo(sigRes$res3M_WT36, ont = "MF")))
+
+MFGO1F_WT41 = (summary(allgo(sigRes$res1F_WT41, ont = "MF")))
+MFGO1M_WT41 = (summary(allgo(sigRes$res1M_WT41, ont = "MF")))
+
+MFGO2F_WT41 = (summary(allgo(sigRes$res2F_WT41, ont = "MF")))
+MFGO2M_WT41 = (summary(allgo(sigRes$res2M_WT41, ont = "MF")))
+
+MFGO3F_WT41 = (summary(allgo(sigRes$res3F_WT41, ont = "MF")))
+MFGO3M_WT41 = (summary(allgo(sigRes$res3M_WT41, ont = "MF")))
+
+```
+
+```{r}
+MFGO1F_WT36
+MFGO1M_WT36
+
+MFGO2F_WT36
+MFGO2M_WT36
+
+MFGO3F_WT36
+MFGO3M_WT36
+```
+
+```{r}
+MFGO1F_WT41
+MFGO1M_WT41
+
+MFGO2F_WT41
+MFGO2M_WT41
+
+MFGO3F_WT41
+MFGO3M_WT41
+```
+
+## Comparing different TG lines
+
+### BP Analysis
+
+```{r}
+BPGO1F_3641 = summary(allgo(sigRes$res1F_3641))
+BPGO1M_3641 = summary(allgo(sigRes$res1M_3641))
+
+BPGO2F_3641 = summary(allgo(sigRes$res2F_3641))
+BPGO2M_3641 = summary(allgo(sigRes$res2M_3641))
+
+BPGO3F_3641 = summary(allgo(sigRes$res3F_3641))
+BPGO3M_3641 = summary(allgo(sigRes$res3M_3641))
+```
+
+```{r}
+BPGO1F_3641
+BPGO1M_3641
+```
+
+```{r}
+BPGO2F_3641
+BPGO2M_3641
+```
+
+```{r}
+BPGO3F_3641
+BPGO3M_3641
+```
+
+
+### CC Analysis
+
+```{r}
+CCGO1F_3641 = summary(allgo(sigRes$res1F_3641, ont = "CC"))
+CCGO1M_3641 = summary(allgo(sigRes$res1M_3641, ont = "CC"))
+
+CCGO2F_3641 = summary(allgo(sigRes$res2F_3641, ont = "CC"))
+CCGO2M_3641 = summary(allgo(sigRes$res2M_3641, ont = "CC"))
+
+CCGO3F_3641 = summary(allgo(sigRes$res3F_3641, ont = "CC"))
+CCGO3M_3641 = summary(allgo(sigRes$res3M_3641, ont = "CC"))
+```
+
+```{r}
+CCGO1F_3641
+CCGO1M_3641
+```
+
+```{r}
+CCGO2F_3641
+CCGO2M_3641
+```
+
+```{r}
+CCGO3F_3641
+CCGO3M_3641
+```
+
+### MF Analysis
+
+```{r}
+MFGO1F_3641 = summary(allgo(sigRes$res1F_3641, ont = "MF"))
+MFGO1M_3641 = summary(allgo(sigRes$res1M_3641, ont = "MF"))
+
+MFGO2F_3641 = summary(allgo(sigRes$res2F_3641, ont = "MF"))
+MFGO2M_3641 = summary(allgo(sigRes$res2M_3641, ont = "MF"))
+
+MFGO3F_3641 = summary(allgo(sigRes$res3F_3641, ont = "MF"))
+MFGO3M_3641 = summary(allgo(sigRes$res3M_3641, ont = "MF"))
+```
+
+```{r}
+MFGO1F_3641
+MFGO1M_3641
+```
+
+```{r}
+MFGO2F_3641
+MFGO2M_3641
+```
+
+```{r}
+MFGO3F_3641
+MFGO3M_3641
+```
+
+
+## Timepoint Comparisons
+
+```{r}
+
+BPGOF_36_21 = (summary(allgo(sigRes$resF_36_21)))
+BPGOM_36_21 = (summary(allgo(sigRes$resM_36_21)))
+BPGOF_36_32 = (summary(allgo(sigRes$resF_36_32)))
+BPGOM_36_32 = (summary(allgo(sigRes$resM_36_32)))
+BPGOF_36_31 = (summary(allgo(sigRes$resF_36_31)))
+BPGOM_36_31 = (summary(allgo(sigRes$resM_36_31)))
+
+```
+
+```{r}
+BPGOF_36_21
+BPGOM_36_21
+```
+
+```{r}
+BPGOF_36_32
+BPGOM_36_32
+```
+
+```{r}
+BPGOF_36_31
+BPGOM_36_31
+```
+
+```{r}
+
+CCGOF_36_21 = (summary(allgo(sigRes$resF_36_21, ont = "CC")))
+CCGOM_36_21 = (summary(allgo(sigRes$resM_36_21, ont = "CC")))
+CCGOF_36_32 = (summary(allgo(sigRes$resF_36_32, ont = "CC")))
+CCGOM_36_32 = (summary(allgo(sigRes$resM_36_32, ont = "CC")))
+CCGOF_36_31 = (summary(allgo(sigRes$resF_36_31, ont = "CC")))
+CCGOM_36_31 = (summary(allgo(sigRes$resM_36_31, ont = "CC")))
+
+```
+
+```{r}
+CCGOF_36_21
+CCGOM_36_21
+```
+
+```{r}
+CCGOF_36_32
+CCGOM_36_32
+```
+
+```{r}
+CCGOF_36_31
+CCGOM_36_31
+```
+
+```{r}
+
+MFGOF_36_21 = (summary(allgo(sigRes$resF_36_21, ont = "MF")))
+MFGOM_36_21 = (summary(allgo(sigRes$resM_36_21, ont = "MF")))
+MFGOF_36_32 = (summary(allgo(sigRes$resF_36_32, ont = "MF")))
+MFGOM_36_32 = (summary(allgo(sigRes$resM_36_32, ont = "MF")))
+MFGOF_36_31 = (summary(allgo(sigRes$resF_36_31, ont = "MF")))
+MFGOM_36_31 = (summary(allgo(sigRes$resM_36_31, ont = "MF")))
+
+```
+
+```{r}
+MFGOF_36_21
+MFGOM_36_21
+```
+
+```{r}
+MFGOF_36_32
+MFGOM_36_32
+```
+
+```{r}
+MFGOF_36_31
+MFGOM_36_31
+```
+
+
+```{r}
+
+BPGOF_41_21 = (summary(allgo(sigRes$resF_41_21)))
+BPGOM_41_21 = (summary(allgo(sigRes$resM_41_21)))
+BPGOF_41_32 = (summary(allgo(sigRes$resF_41_32)))
+BPGOM_41_32 = (summary(allgo(sigRes$resM_41_32)))
+BPGOF_41_31 = (summary(allgo(sigRes$resF_41_31)))
+BPGOM_41_31 = (summary(allgo(sigRes$resM_41_31)))
+
+```
+
+```{r}
+BPGOF_41_21
+BPGOM_41_21
+```
+
+```{r}
+BPGOF_41_32
+BPGOM_41_32
+```
+
+```{r}
+BPGOF_41_31
+BPGOM_41_31
+```
+
+```{r}
+
+CCGOF_41_21 = (summary(allgo(sigRes$resF_41_21, ont = "CC")))
+CCGOM_41_21 = (summary(allgo(sigRes$resM_41_21, ont = "CC")))
+CCGOF_41_32 = (summary(allgo(sigRes$resF_41_32, ont = "CC")))
+CCGOM_41_32 = (summary(allgo(sigRes$resM_41_32, ont = "CC")))
+CCGOF_41_31 = (summary(allgo(sigRes$resF_41_31, ont = "CC")))
+CCGOM_41_31 = (summary(allgo(sigRes$resM_41_31, ont = "CC")))
+
+```
+
+```{r}
+CCGOF_41_21
+CCGOM_41_21
+```
+
+```{r}
+CCGOF_41_32
+CCGOM_41_32
+```
+
+```{r}
+CCGOF_41_31
+CCGOM_41_31
+```
+
+```{r}
+
+MFGOF_41_21 = (summary(allgo(sigRes$resF_41_21, ont = "MF")))
+MFGOM_41_21 = (summary(allgo(sigRes$resM_41_21, ont = "MF")))
+MFGOF_41_32 = (summary(allgo(sigRes$resF_41_32, ont = "MF")))
+MFGOM_41_32 = (summary(allgo(sigRes$resM_41_32, ont = "MF")))
+MFGOF_41_31 = (summary(allgo(sigRes$resF_41_31, ont = "MF")))
+MFGOM_41_31 = (summary(allgo(sigRes$resM_41_31, ont = "MF")))
+
+```
+
+```{r}
+MFGOF_41_21
+MFGOM_41_21
+```
+
+```{r}
+MFGOF_41_32
+MFGOM_41_32
+```
+
+```{r}
+MFGOF_41_31
+MFGOM_41_31
+```
+
+# KEGG Pathway Enrichment analysis
+
+```{r message=FALSE, warning=FALSE}
+library(pathview)
+library(gage)
+library(gageData)
+library(limma)
+
+# Importing data for GO path analysis and subsetting according to the kind of analysis needed, same with KEGG
+
+data("go.sets.mm")
+data("go.subs.mm")
+data("kegg.sets.mm")
+data("sigmet.idx.mm")
+
+gobpsets = go.sets.mm[go.subs.mm$BP] 
+goccsets = go.sets.mm[go.subs.mm$CC]
+gomfsets = go.sets.mm[go.subs.mm$MF]
+
+kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
+
+# Df with names of KEGG pathway names, important for function ahead
+
+KEGGpathNames = getKEGGPathwayNames(species.KEGG = "mmu")
+
+```
+
+```{r}
+
+keggPathAnal = function(x, top = 10, output = FALSE) {
+
+  # Extract and name fold changes
+  x = x[(x$log2FoldChange > 0.5 | x$log2FoldChange < -0.5) & x$padj < 0.5,]
+  
+  foldchanges = x$log2FoldChange
+  names(foldchanges) = x$Gene_ID
+  
+  # KEGG pathway analysis
+  keggres = gage(exprs = foldchanges, gsets = kegg.sets.mm, same.dir = TRUE)
+  
+  # Select top pathways
+  pathways = data.frame(id = rownames(keggres$less), keggres$less) %>%
+    as_tibble() %>%
+    filter(row_number() <= top) %>%
+    .$id %>% 
+    as.character()
+  
+  # ID variables with only first 8 characters
+  keggIDs = substr(pathways, start = 1, stop = 8)
+  
+  # Handle output argument
+  if (output == TRUE){
+  
+  # Run pathview and specify output directory
+  sapply(keggIDs, function(pid) {
+    tryCatch({
+      pathview(gene.data = foldchanges, pathway.id = pid, species = "mmu", kegg.dir = "./KEGG_Pathways", low = list(gene = "red"), high = list(gene = "green"))
+    }, error = function(e) {
+      message("Error processing pathway ID: ", pid)
+      message("Error message: ", e$message)
+    })
+  })
+  
+  # Return a df with the names of top 10 pathways, for easy Rmd visualization
+  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
+  
+  return(matching_pathways)
+  
+  }
+  
+  # When output FALSE just returns df with the name of top pathways
+  else {
+  matching_pathways = KEGGpathNames %>% filter(PathwayID %in% keggIDs)
+  
+  return(matching_pathways)
+  }
+}
+```
+
+## Comparing WT and TG mice (add output = TRUE argument if you want to output images)
+
+### WT v 36
+
+```{r}
+keggPathAnal(reList$res1F_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res1M_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res2F_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res2M_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res3F_WT36)
+```
+
+```{r}
+keggPathAnal(reList$res3M_WT36)
+```
+
+### WT v 41
+
+```{r}
+keggPathAnal(reList$res1F_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res1M_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res2F_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res2M_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res3F_WT41)
+```
+
+```{r}
+keggPathAnal(reList$res3M_WT41)
+```
+
+## Comparing TG lines
+
+```{r}
+keggPathAnal(reList$res1F_3641)
+```
+
+```{r}
+keggPathAnal(reList$res1M_3641)
+```
+
+```{r}
+keggPathAnal(reList$res2F_3641)
+```
+
+```{r}
+keggPathAnal(reList$res2M_3641)
+```
+
+```{r}
+keggPathAnal(reList$res3F_3641)
+```
+
+```{r}
+keggPathAnal(reList$res3M_3641)
+```
+
+## Comparing Timepoints
+
+### WT
+
+```{r}
+keggPathAnal(reList$resF_WT21)
+```
+
+```{r}
+keggPathAnal(reList$resM_WT21)
+```
+
+```{r}
+keggPathAnal(reList$resF_WT32)
+```
+
+```{r}
+keggPathAnal(reList$resM_WT32)
+```
+
+```{r}
+keggPathAnal(reList$resF_WT31)
+```
+
+```{r}
+keggPathAnal(reList$resM_WT31)
+```
+### 36
+
+```{r}
+keggPathAnal(reList$resF_36_21)
+```
+
+```{r}
+keggPathAnal(reList$resM_36_21)
+```
+
+```{r}
+keggPathAnal(reList$resF_36_31)
+```
+
+```{r}
+keggPathAnal(reList$resM_36_31)
+```
+
+```{r}
+keggPathAnal(reList$resF_36_32)
+```
+
+```{r}
+keggPathAnal(reList$resM_36_32)
+```
+
+### 41
+
+```{r}
+keggPathAnal(reList$resF_41_21)
+```
+
+```{r}
+keggPathAnal(reList$resM_41_21)
+```
+
+```{r}
+keggPathAnal(reList$resF_41_31)
+```
+
+```{r}
+keggPathAnal(reList$resM_41_31)
+```
+
+```{r}
+keggPathAnal(reList$resF_41_32)
+```
+
+```{r}
+keggPathAnal(reList$resM_41_32)
+```
