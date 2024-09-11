@@ -1170,7 +1170,7 @@ barplot(medNlfc41, names.arg = c("T1F", "T2F", "T3F", "T1M", "T2M", "T3M"), main
 ## Absolute numbers of RBP DEGs, split by condition
 
 ```{r}
-plot_DEG_barplot <- function(condition_dfs, condition_names, logfc_threshold = 0.5, padj_threshold = 0.5, title = "title your stuff") {
+plot_DEG_barplot <- function(condition_dfs, condition_names, logfc_threshold = 0.5, padj_threshold = 0.05, title = "title your stuff") {
   
   # Check if the input is a list of data frames
   if (!is.list(condition_dfs) || any(!sapply(condition_dfs, is.data.frame))) {
