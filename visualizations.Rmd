@@ -819,7 +819,13 @@ seqHeatmap(rl3M_3641)
 
 ```{r}
 
-plotCounts(dds1F_WT36, gene = "Carhsp1", intgroup = "l1F_WT36", main = "Carhsp1")
+plotCounts(dds1F_WT36, gene = "Carhsp1", intgroup = "l1F_WT36")
+
+plotCounts(dds2F_WT36, gene = "Bysl", intgroup = "l2F_WT36")
+plotCounts(dds2M_WT36, gene = "Bysl", intgroup = "l2M_WT36")
+
+plotCounts(dds2F_WT36, gene = "Eif4g1", intgroup = "l2F_WT36")
+plotCounts(dds2M_WT36, gene = "Eif4g1", intgroup = "l2M_WT36")
 
 # I will expand this section as needed
 
@@ -1231,61 +1237,5 @@ plot_DEG_barplot(condition_dfs = L36, condition_names = c("T1F", "T1M", "T2F", "
 L41 = list(reList$res1F_WT41, reList$res1M_WT41, reList$res2F_WT41, reList$res2M_WT41, reList$res3F_WT41, reList$res3M_WT41)
 
 plot_DEG_barplot(condition_dfs = L41, condition_names = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), title = "Total Differentially Expressed Genes - L41")
-```
-
-
-```{r, fig.height=6}
-
-intersectTPs =  function(x,y){
-
-  ysig = y[(y$log2FoldChange > 0.5 | y$log2FoldChange < -0.5) & (y$padj < 0.5),]
-  
-  xsig = x[(x$log2FoldChange > 0.5 | y$log2FoldChange < -0.5) & (x$padj < 0.5),]
-  
-  xsig = xsig[!(rownames(xsig) %in% rownames(ysig)),]
-  
-  return(xsig)
-}
-
-resF_36_21n = intersectTPs(x = reList$resF_36_21,y = reList$resF_WT21)
-resM_36_21n = intersectTPs(x = reList$resM_36_21,y = reList$resM_WT21)
-
-resF_36_32n = intersectTPs(x = reList$resF_36_32,y = reList$resF_WT32)
-resM_36_32n = intersectTPs(x = reList$resM_36_32,y = reList$resM_WT32)
-
-resF_36_31n = intersectTPs(x = reList$resF_36_31,y = reList$resF_WT31)
-resM_36_31n = intersectTPs(x = reList$resM_36_31,y = reList$resM_WT31)
-
-
-TP36F = list(reList$resF_36_21, resF_36_21n, reList$resF_36_32, resF_36_32n, reList$resF_36_31, resF_36_31n)
-
-plot_DEG_barplot(condition_dfs = TP36F, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Female L36 DEGs")
-
-TP36M = list(reList$resM_36_21, resM_36_21n, reList$resM_36_32, resM_36_32n, reList$resM_36_31, resM_36_31n)
-
-plot_DEG_barplot(condition_dfs = TP36M, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Male L36 DEGs")
-
-```
-
-
-```{r, fig.height=6}
-resF_41_21n = intersectTPs(x = reList$resF_41_21,y = reList$resF_WT21)
-resM_41_21n = intersectTPs(x = reList$resM_41_21,y = reList$resM_WT21)
-
-resF_41_32n = intersectTPs(x = reList$resF_41_32,y = reList$resF_WT32)
-resM_41_32n = intersectTPs(x = reList$resM_41_32,y = reList$resM_WT32)
-
-resF_41_31n = intersectTPs(x = reList$resF_41_31,y = reList$resF_WT31)
-resM_41_31n = intersectTPs(x = reList$resM_41_31,y = reList$resM_WT31)
-
-
-TP41F = list(reList$resF_41_21, resF_41_21n, reList$resF_41_32, resF_41_32n, reList$resF_41_31, resF_41_31n)
-
-plot_DEG_barplot(condition_dfs = TP41F, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Female L41 DEGs")
-
-TP41M = list(reList$resM_41_21, resM_41_21n, reList$resM_41_32, resM_41_32n, reList$resM_41_31, resM_41_31n)
-
-plot_DEG_barplot(condition_dfs = TP41M, condition_names = c("TP1-2", "TP1-2 -WT", "TP2-3", "TP2-3 -WT", "TP1-3", "TP1-3 -WT"), title = "Male L41 DEGs")
-
 ```
 
