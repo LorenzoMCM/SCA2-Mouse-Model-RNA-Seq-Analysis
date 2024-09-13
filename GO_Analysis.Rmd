@@ -19,9 +19,9 @@ install.packages(c('dplyr','readxl','DESeq2'), repos = "http://cran.us.r-project
 ```
 
 ```{r eval=FALSE}
-BiocManager::install(c('DESeq2', 'AnnotationDbi', 'vsn', 'org.Mm.eg.db', 'apeglm', 'select'))
+BiocManager::install(c('DESeq2', 'AnnotationDbi', 'vsn', 'org.Mm.eg.db', 'apeglm', 'select', 'topGO', 'pathview', 'gage', 'gageData', 'limma'))
 
-BiocManager::install("topGO")
+
 ```
 
 ```{r message=FALSE}
@@ -1018,16 +1018,10 @@ library(gage)
 library(gageData)
 library(limma)
 
-# Importing data for GO path analysis and subsetting according to the kind of analysis needed, same with KEGG
+# Importing data for KEGG path analysis
 
-data("go.sets.mm")
-data("go.subs.mm")
 data("kegg.sets.mm")
 data("sigmet.idx.mm")
-
-gobpsets = go.sets.mm[go.subs.mm$BP] 
-goccsets = go.sets.mm[go.subs.mm$CC]
-gomfsets = go.sets.mm[go.subs.mm$MF]
 
 kegg.sets.mm = kegg.sets.mm[sigmet.idx.mm]
 
