@@ -28,14 +28,8 @@ remotes::install_github("kevinblighe/CorLevelPlot")
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
-library(vsn)
-library(Glimma)
-library(regionReport)
-library(clusterProfiler)
-library(org.Mm.eg.db)
-library(AnnotationDbi)
-library(biomaRt)
 library(stringr)
+library(ggplot2)
 library(dplyr)
 library(CorLevelPlot)
 ```
@@ -347,9 +341,27 @@ write.csv(hubGenes(color = 'tan'), file = "tanMod41.csv")
 write.csv(hubGenes(color = 'purple'), file = "purpleMod41.csv")
 ```
 
-### Exporting module
+### Function for outputing cytoscape files for specific modules
 
 ```{r}
-#exportNetworkToCytoscape(adjMat = adjacency_matrix, edgeFile = "WGCNA_41_edge.txt", nodeFile = "WGCNA_41_node.txt")
+colornw = function(x){
+  
+  moduleOfInterest = x
+  module_genes = which(moduleColors == moduleOfInterest)
+  module_gene_names = colnames(norm.counts)[module_genes]
+  
+  TOM_module = TOM[module_genes,module_genes]
+  
+  exportNetworkToCytoscape(
+    TOM_module,
+    edgeFile = paste("CSEdges_", moduleOfInterest, ".txt", sep = ""),
+    nodeFile = paste("CSNodes_", moduleOfInterest, ".txt", sep = ""),
+    threshold = 0.02,
+    nodeNames = module_gene_names,
+    nodeAttr = moduleColors[module_genes]
+  )
+  
+}
+
 ```
 

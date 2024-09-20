@@ -396,6 +396,16 @@ ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
 ```
 
+# Reports on differentially expressed (Padj < 0.5) genes for easy visualization, commented to allow Knitting
+
+```{r eval=FALSE, include=FALSE}
+# Commented to allow Markdown knitting, must uncomment and open output in browser for visualization
+
+#limmaVolcano(x = dds3F_WTG, counts = T3F_WTG, groups = c3F_WTG$l3F_WTG)
+
+#DESeq2Report(dds = dds3F_WTG, project = "T3 Female TG v WT", intgroup = c("l3F_WTG"), output = "T3_F_WTG")
+```
+
 # Preparing readable output
 
 ## Converting to result objects
@@ -536,6 +546,83 @@ allgo = function(x, lfcThreshold = 2, padjThreshold = 0.05, cutOff = 0.05, ont =
 
 
 ```
+
+## GO graphs
+
+```{r fig.height=20, fig.width=20}
+
+# Function for listing significant genes of a result object
+
+sigGenes = function(x, lfcThreshold = 2, padjThreshold = 0.05){
+  
+  selectGenes = unique(x$Gene_ID[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold)])
+  return(selectGenes)
+}
+
+# Applying the function to all results 
+sigAll = lapply(reList, sigGenes)
+
+# Now we can apply the GO graph function to each condition we want, important to have large fig. dimensions at the start of the chunk for the sake of readability
+
+plotGOgraph(x = (enrichGO(sigAll$res1F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res1M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r}
+plotGOgraph(x = (enrichGO(sigAll$res1F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res1M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
 
 
 ## Comparing WT and TG mice (these take ~5 minutes to complete per chunk, depending on your CPU single core performance)
@@ -1169,15 +1256,15 @@ keggPathAnal(reList$resM_41_32)
 ## WGCNA Modules GO Analysis
 
 ```{r}
-greenMod = read.csv("greenMod36.csv")
+greenMod = read.csv("green36Mod.csv")
 greenMod = as.data.frame(greenMod$rownames.kWithin_sorted.)
 colnames(greenMod) = "Gene_Symbol"
 
-pinkMod = read.csv("pinkMod36.csv")
-pinkMod = as.data.frame(pinkMod$rownames.kWithin_sorted.)
+pinkMod = read.csv("pink36Mod.csv")
+pinkMod = as.data.frame(pinkMod$pinkMod)
 colnames(pinkMod) = "Gene_Symbol"
 
-yellowMod = read.csv("yellowMod36.csv")
+yellowMod = read.csv("yellow36Mod.csv")
 yellowMod = as.data.frame(yellowMod$rownames.kWithin_sorted.)
 colnames(yellowMod) = "Gene_Symbol"
 

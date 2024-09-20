@@ -15,24 +15,16 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','biomaRt','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','readxl'), repos = "http://cran.us.r-project.org" )
 ```
 
 ```{r eval=FALSE}
-BiocManager::install(c('DESeq2', 'AnnotationDbi', 'org.Mm.eg.db', 'apeglm', 'ReportingTools', 'clusterProfiler'))
+BiocManager::install(c('DESeq2'))
 ```
 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
-library(vsn)
-library(Glimma)
-library(regionReport)
-library(clusterProfiler)
-library(org.Mm.eg.db)
-library(AnnotationDbi)
-library(biomaRt)
-library(stringr)
 library(dplyr)
 ```
 
@@ -603,52 +595,38 @@ outputTidy(genesnAll, "DEG_N_rbps.csv")
 
 #When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
 
-
 ```
 
-## Purkinje Cell Markers
+
+### Most commonly differentially Expressed RBPs per line and Overall
 
 ```{r}
-PC_markers = read_excel("pc_markers.xlsx",col_names = FALSE)
+# Filtering results objects for significance thresholds
 
-res1F_WT36[reList$res1F_WT36$MGI %in% PC_markers$...1,]
-
-pc_mark = function(x){
+sigLFCList = lapply(reList, function(df){
   
-  # Ensure 'MGI' column exists in the DESeq2 results object (x)
-  if (!"MGI" %in% colnames(x)) {
-    stop("Error: 'MGI' column not found in the DESeq2 results object")
-  }
+  df = df[(df$log2FoldChange > 0.5 | df$log2FoldChange < -0.5) & df$padj < 0.05,]
   
-  # Subset 'x' where 'MGI' is present in the PC_markers column
-  x_subset = x[x$MGI %in% PC_markers[[1]], ]
-  
-  x_subset = (x_subset[(x_subset$log2FoldChange > 0.5 | x_subset$log2FoldChange < -0.5) & x_subset$padj < 0.05,])
-  
-  x_subset = na.omit(x_subset)
-  
-  return(x_subset)
-}
-```
+  df = df[!is.na(df$Gene_Symbol),]
+})
 
-```{r}
-pc_mark(reList$res1F_WT36)
-pc_mark(reList$res1M_WT36)
+# Listing the Gene symbols of all differentialy expressed RBPs
 
-pc_mark(reList$res2F_WT36)
-pc_mark(reList$res2M_WT36)
+DEG_rbps = c(sigLFCList$res1F_WT36$Gene_Symbol, sigLFCList$res1M_WT36$Gene_Symbol,sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol,sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol,sigLFCList$res1F_WT41$Gene_Symbol, sigLFCList$res1M_WT41$Gene_Symbol,sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol,sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol)
 
-pc_mark(reList$res3F_WT36)
-pc_mark(reList$res3M_WT36)
+DEG_rbps_36 = c(sigLFCList$res1F_WT36$Gene_Symbol, sigLFCList$res1M_WT36$Gene_Symbol,sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol,sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol)
 
-pc_mark(reList$res1F_WT41)
-pc_mark(reList$res1M_WT41)
+DEG_rbps_41 = c(sigLFCList$res1F_WT41$Gene_Symbol, sigLFCList$res1M_WT41$Gene_Symbol,sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol,sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol)
 
-pc_mark(reList$res2F_WT41)
-pc_mark(reList$res2M_WT41)
+# Returning sorted lists 
 
-pc_mark(reList$res3F_WT41)
-pc_mark(reList$res3M_WT41)
+DEG_rbps_36 = sort(table(DEG_rbps_36), decreasing = TRUE)
+DEG_rbps_36
 
+DEG_rbps_41 = sort(table(DEG_rbps_41), decreasing = TRUE)
+DEG_rbps_41
+
+DEG_rbps_top = sort(table(DEG_rbps), decreasing = TRUE)
+DEG_rbps_top
 ```
 

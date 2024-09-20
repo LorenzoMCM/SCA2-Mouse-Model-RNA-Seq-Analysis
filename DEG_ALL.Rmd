@@ -1,5 +1,5 @@
 ---
-title: "RNA_setup"
+title: "RNA_All"
 author: "Lorenzo.MCM"
 date: "2024-06-04"
 output: html_document
@@ -15,24 +15,16 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','biomaRt','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','readxl'), repos = "http://cran.us.r-project.org" )
 ```
 
 ```{r eval=FALSE}
-BiocManager::install(c('DESeq2', 'AnnotationDbi', 'org.Mm.eg.db', 'apeglm', 'ReportingTools', 'clusterProfiler'))
+BiocManager::install(c('DESeq2'))
 ```
 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
-library(vsn)
-library(Glimma)
-library(regionReport)
-library(clusterProfiler)
-library(org.Mm.eg.db)
-library(AnnotationDbi)
-library(biomaRt)
-library(stringr)
 library(dplyr)
 ```
 
@@ -551,11 +543,11 @@ degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "G
 
 ```{r}
 
-genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
+genespAll = lapply(reList, pdegenes, lfcThreshold = 2, padjThreshold = 0.05, max = NULL)
 
-genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.05, max = NULL)
+genesnAll = lapply(reList, ndegenes, lfcThreshold = -2, padjThreshold = 0.05, max = NULL)
 
-genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
+genesAll = lapply(reList, degenes, lfcThreshold = 2, padjThreshold = 0.05, max = NULL)
 
 ```
 
@@ -592,8 +584,6 @@ outputTidy(genesnAll, "DEG_N_ALL.csv")
 
 ```{r}
 PC_markers = read_excel("pc_markers.xlsx",col_names = FALSE)
-
-res1F_WT36[reList$res1F_WT36$MGI %in% PC_markers$...1,]
 
 pc_mark = function(x){
   
@@ -633,4 +623,3 @@ pc_mark(reList$res3F_WT41)
 pc_mark(reList$res3M_WT41)
 
 ```
-

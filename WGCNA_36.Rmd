@@ -16,23 +16,17 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r eval=FALSE}
 
 install.packages(c('dplyr','biomaRt','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
-```
 
-```{r eval=FALSE}
-BiocManager::install(c('DESeq2', 'AnnotationDbi', 'org.Mm.eg.db', 'apeglm', 'ReportingTools', 'clusterProfiler'))
+BiocManager::install(c('DESeq2'))
+
+install.packages("remotes")
+remotes::install_github("kevinblighe/CorLevelPlot")
 ```
 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
-library(vsn)
-library(Glimma)
-library(regionReport)
-library(clusterProfiler)
-library(org.Mm.eg.db)
-library(AnnotationDbi)
-library(biomaRt)
-library(stringr)
+library(ggplot2)
 library(dplyr)
 library(CorLevelPlot)
 ```
@@ -254,6 +248,37 @@ traits$M3_36 = ifelse(traits$sex_bin == 0 & traits$c36_bin == 1 & traits$tp3_bin
 rm(traits1)
 ```
 
+### Significant modules p values
+
+```{r}
+green = module_eigengenes$MEgreen
+pink = module_eigengenes$MEpink
+yellow = module_eigengenes$MEyellow
+
+corGreen = cor.test(green, traits$c36_bin)
+
+pGreen = corGreen$p.value
+
+pGreen
+```
+
+```{r}
+corPink = cor.test(pink, traits$c36_bin)
+
+pPink = corPink$p.value
+
+pPink
+```
+
+```{r}
+corYellow = cor.test(yellow, traits$c36_bin)
+
+pYellow = corYellow$p.value
+
+pYellow
+
+```
+
 ```{r}
 nSamples = nrow(norm.counts)
 nGenes = ncol(norm.counts)
@@ -336,9 +361,5 @@ write.csv(hubGenes(color = 'yellow'), file = "yellowMod36.csv")
 write.csv(hubGenes(color = 'tan'), file = "tanMod36.csv")
 
 write.csv(hubGenes(color = 'purple'), file = "purpleMod36.csv")
-```
-
-```{r}
-#exportNetworkToCytoscape(adjMat = adjacency_matrix, edgeFile = "WGCNA_36_edge", nodeFile = "WGCNA_36_node")
 ```
 

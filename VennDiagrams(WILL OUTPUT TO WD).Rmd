@@ -1,7 +1,7 @@
 ---
-title: "Visualizations & Plots"
+title: "Venn Diagrams"
 author: "Lorenzo.MCM"
-date: "2024-07-19"
+date: "2024-09-18"
 output: html_document
 ---
 
@@ -15,15 +15,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','readxl','gplots','DESeq2'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','readxl','DESeq2','ggplot2', 'VennDiagram'), repos = "http://cran.us.r-project.org" )
 
-BiocManager::install('EnhancedVolcano')
 ```
 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
+library(vsn)
+library(clusterProfiler)
+library(org.Mm.eg.db)
 library(gplots)
+library(AnnotationDbi)
+library(stringr)
 library(dplyr)
 library(EnhancedVolcano)
 ```
@@ -85,8 +89,7 @@ colnames(rbps) = (read_excel("conditions.xlsx", col_names = FALSE))[1,]
               
 ```
 
-# Setting up for DESeq
-
+# Setting up for DESeq 
 ## Intermediate objects for selecting conditions for comparisons through DESeq
 
 ```{r message=FALSE, warning=FALSE}
@@ -160,8 +163,7 @@ T3M_WTG = bind_cols(T3M_WT, T3M_TG)
 
 ```
 
-## setting up dfs for DESeq design
-
+## setting up dfs for DESeq design 
 ```{r}
 #timepoint lists
 tpF_WT = c("1","1","1","2","2","2","3","3","3")
@@ -481,8 +483,7 @@ resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
 ```
 
 ## Converting results to dfs, adding MGI,
-
-entrez and Symbol as columns
+entrez and Symbol as columns 
 
 ```{r message=FALSE}
 
@@ -571,598 +572,202 @@ genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.05, max
 
 ```
 
-# Visualizations
-
-# rlog transform
-
-```{r}
-rl1F_WT36 = rlog(dds1F_WT36)
-rl1M_WT36 = rlog(dds1M_WT36)
-
-rl2F_WT36 = rlog(dds2F_WT36)
-rl2M_WT36 = rlog(dds2M_WT36)
-
-rl3F_WT36 = rlog(dds3F_WT36)
-rl3M_WT36 = rlog(dds3M_WT36)
-
-rl1F_WT41 = rlog(dds1F_WT41)
-rl1M_WT41 = rlog(dds1M_WT41)
-
-rl2F_WT41 = rlog(dds2F_WT41)
-rl2M_WT41 = rlog(dds2M_WT41)
-
-rl3F_WT41 = rlog(dds3F_WT41)
-rl3M_WT41 = rlog(dds3M_WT41)
-
-rl1F_3641 = rlog(dds1F_3641)
-rl1M_3641 = rlog(dds1M_3641)
-
-rl2F_3641 = rlog(dds2F_3641)
-rl2M_3641 = rlog(dds2M_3641)
-
-rl3F_3641 = rlog(dds3F_3641)
-rl3M_3641 = rlog(dds3M_3641)
-
-rlF_WT = rlog(ddsF_WT)
-rlM_WT = rlog(ddsM_WT)
-
-rlF_36 = rlog(ddsF_36)
-rlM_36 = rlog(ddsM_36)
-
-rlF_41 = rlog(ddsF_41)
-rlM_41 = rlog(ddsM_41)
-
-
-```
-
-## PCA Plots
-
-```{r}
-plotPCA(rl1F_WT36, intgroup = c("l1F_WT36"))
-plotPCA(rl1M_WT36, intgroup = c("l1M_WT36"))
-```
-
-```{r}
-plotPCA(rl1F_WT41, intgroup = c("l1F_WT41"))
-plotPCA(rl1M_WT41, intgroup = c("l1M_WT41"))
-```
-
-```{r}
-plotPCA(rl1F_3641, intgroup = c("l1F_3641"))
-plotPCA(rl1M_3641, intgroup = c("l1M_3641"))
-```
-
-```{r}
-plotPCA(rl2F_WT36, intgroup = c("l2F_WT36"))
-plotPCA(rl2M_WT36, intgroup = c("l2M_WT36"))
-```
-
-```{r}
-plotPCA(rl2F_WT41, intgroup = c("l2F_WT41"))
-plotPCA(rl2M_WT41, intgroup = c("l2M_WT41"))
-```
-
-```{r}
-plotPCA(rl2F_3641, intgroup = c("l2F_3641"))
-plotPCA(rl2M_3641, intgroup = c("l2M_3641"))
-```
-
-```{r}
-plotPCA(rl3F_WT36, intgroup = c("l3F_WT36"))
-plotPCA(rl3M_WT36, intgroup = c("l3M_WT36"))
-```
-
-```{r}
-plotPCA(rl3F_WT41, intgroup = c("l3F_WT41"))
-plotPCA(rl3M_WT41, intgroup = c("l3M_WT41"))
-```
-
-```{r}
-plotPCA(rl3F_3641, intgroup = c("l3F_3641"))
-plotPCA(rl3M_3641, intgroup = c("l3M_3641"))
-```
-
-```{r}
-plotPCA(rlF_WT, intgroup = c("tpF_WT"))
-plotPCA(rlM_WT, intgroup = c("tpM_WT"))
-```
-
-```{r}
-plotPCA(rlF_36, intgroup = c("tpF_36"))
-plotPCA(rlM_36, intgroup = c("tpM_36"))
-```
-
-```{r}
-plotPCA(rlF_41, intgroup = c("tpF_41"))
-plotPCA(rlM_41, intgroup = c("tpM_41"))
-```
-
-## Volcano Plots
-
-### l36
-
-```{r,fig.width= 7, fig.height=7}
-library(EnhancedVolcano)
-EnhancedVolcano(res1F_WT36,
-                lab = rownames(res1F_WT36),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',
-                FCcutoff = 0.5,
-                xlim = c(-6,6),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res1M_WT36,
-                lab = rownames(res1M_WT36),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',
-                FCcutoff = 0.5,
-                xlim = c(-3,3),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res2F_WT36,
-                lab = rownames(res2F_WT36),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',
-                FCcutoff = 0.5,
-                xlim = c(-3,3),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res2M_WT36,
-                lab = rownames(res2M_WT36),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',                
-                FCcutoff = 0.5,
-                xlim = c(-3,3),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res3F_WT36,
-                lab = rownames(res3F_WT36),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',                
-                FCcutoff = 0.5,
-                xlim = c(-3,3),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res3M_WT36,
-                lab = rownames(res3M_WT36),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',                
-                FCcutoff = 0.5,
-                xlim = c(-3,3),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-### l41
-
-```{r,fig.width= 7, fig.height=7}
-library(EnhancedVolcano)
-EnhancedVolcano(res1F_WT41,
-                lab = rownames(res1F_WT41),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',
-                FCcutoff = 0.5,
-                xlim = c(-2,2),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res1M_WT41,
-                lab = rownames(res1M_WT41),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',
-                FCcutoff = 0.5,
-                xlim = c(-2,2),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res2F_WT41,
-                lab = rownames(res2F_WT41),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',
-                FCcutoff = 0.5,
-                xlim = c(-2,2),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res2M_WT41,
-                lab = rownames(res2M_WT41),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',                
-                FCcutoff = 0.5,
-                xlim = c(-3,2),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res3F_WT41,
-                lab = rownames(res3F_WT41),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',                
-                FCcutoff = 0.5,
-                xlim = c(-4,2),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-```{r,fig.width= 7, fig.height=7}
-EnhancedVolcano(res3M_WT41,
-                lab = rownames(res3M_WT41),
-                x = 'log2FoldChange',
-                y = 'pvalue',
-                pCutoff = 0.05,
-                pCutoffCol = 'padj',                
-                FCcutoff = 0.5,
-                xlim = c(-3,3),
-                title = NULL,
-                subtitle = NULL,
-                caption = NULL)
-```
-
-## Heatmaps
+## Venn Diagrams (files output to WD)
 
 ```{r}
 
-detectGroups <- function (x){  # x are col names
-  tem <- gsub("[0-9]*$","",x) # Remove all numbers from end
-  #tem = gsub("_Rep|_rep|_REP","",tem)
-  tem <- gsub("_$","",tem); # remove "_" from end
-  tem <- gsub("_Rep$","",tem); # remove "_Rep" from end
-  tem <- gsub("_rep$","",tem); # remove "_rep" from end
-  tem <- gsub("_REP$","",tem)  # remove "_REP" from end
-  return( tem )
-}
-
-dist2 <- function(x, ...)   # distance function = 1-PCC (Pearson's correlation coefficient)
-  as.dist(1-cor(t(x), method="pearson"))
-
-hclust2 <- function(x, method="average", ...)  # average linkage in hierarchical clustering
-  hclust(x, method=method, ...)
+venn.diagram(
+  x = list(
+    "M" = genesAll$res1M_WT36,
+     "F" = genesAll$res1F_WT36
+   ),
+   filename = "T1_36.png",
+   col = "black",
+   fill = c("red", "green"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green")
+ )
+ 
+ 
+ venn.diagram(
+   x = list(
+     "M" = genesAll$res2M_WT36,
+     "F" = genesAll$res2F_WT36
+   ),
+   filename = "T2_36.png",
+   col = "black",
+   fill = c("red", "green"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green")
+ )
+ 
+ venn.diagram(
+   x = list(
+     "M" = genesAll$res3M_WT36,
+     "F" = genesAll$res3F_WT36
+   ),
+   filename = "T3_36.png",
+   col = "black",
+   fill = c("red", "green"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green")
+ )
+ 
+ venn.diagram(
+   x = list(
+     "T1" = genesAll$res1F_WT36,
+     "T2" = genesAll$res2F_WT36,
+     "T3" = genesAll$res3F_WT36
+   ),
+   filename = "TPF_36.png",
+   col = "black",
+   fill = c("red", "green", "blue"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green", "blue")
+ )
+ 
+ venn.diagram(
+   x = list(
+     "T1" = genesAll$res1M_WT36,
+     "T2" = genesAll$res2M_WT36,
+     "T3" = genesAll$res3M_WT36
+   ),
+   filename = "TPM_36.png",
+   col = "black",
+   fill = c("red", "green", "blue"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green", "blue")
+ )
 ```
-
+ 
 ```{r}
-seqHeatmap = function(x,n = 50){
+ venn.diagram(
+   x = list(
+     "M" = genesAll$res1M_WT41,
+     "F" = genesAll$res1F_WT41
+   ),
+   filename = "T1_41.png",
+   col = "black",
+   fill = c("red", "green"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green")
+ )
+
+ venn.diagram(
+   x = list(
+     "M" = genesAll$res2M_WT41,
+     "F" = genesAll$res2F_WT41
+   ),
+   filename = "T2_41.png",
+   col = "black",
+   fill = c("red", "green"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green")
+ )
+ 
+ venn.diagram(
+   x = list(
+     "M" = genesAll$res3M_WT41,
+     "F" = genesAll$res3F_WT41
+   ),
+   filename = "T3_41.png",
+   col = "black",
+   fill = c("red", "green"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green")
+ )
+ 
+ venn.diagram(
+   x = list(
+     "T1" = genesAll$res1F_WT41,
+     "T2" = genesAll$res2F_WT41,
+     "T3" = genesAll$res3F_WT41
+   ),
+   filename = "TPF_41.png",
+   col = "black",
+   fill = c("red", "green", "blue"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green", "blue")
+ )
+ 
+ venn.diagram(
+   x = list(
+     "T1" = genesAll$res1M_WT41,
+     "T2" = genesAll$res2M_WT41,
+     "T3" = genesAll$res3M_WT41
+   ),
+   filename = "TPM_41.png",
+   col = "black",
+   fill = c("red", "green", "blue"),
+   alpha = 0.5,
+   cex = 1.5,
+   cat.cex = 1.5,
+   cat.col = c("red", "green", "blue")
+ )
+
+ venn.diagram(
+   x = list(
+      "F36" = genesAll$res1F_WT36,
+      "M36" = genesAll$res1M_WT36,
+      "F41" = genesAll$res1F_WT41,
+      "M41" = genesAll$res1M_WT41
+    ),
+    filename = "TP1_3641.png",
+    col = "black",
+    fill = c("red", "green", "blue", "cyan"),
+    alpha = 0.5,
+    cex = 1.5,
+    cat.cex = 1.5,
+    cat.col = c("red", "green", "blue", "cyan")
+  )
   
-  x = assay(x)
-  if(n>dim(x)[1]) n = dim(x)[1] # max as data
+  venn.diagram(
+    x = list(
+      "F36" = genesAll$res2F_WT36,
+      "M36" = genesAll$res2M_WT36,
+      "F41" = genesAll$res2F_WT41,
+      "M41" = genesAll$res2M_WT41
+    ),
+    filename = "TP2_3641.png",
+    col = "black",
+    fill = c("red", "green", "blue", "cyan"),
+    alpha = 0.5,
+    cex = 1.5,
+    cat.cex = 1.5,
+    cat.col = c("red", "green", "blue", "cyan")
+  )
   
-  x = x[order(apply(x,1,sd), decreasing = TRUE),] # sort genes by stardad deviation
-  
-  x = x[1:n,] # only keep the n genes
-  
-  # this will cutoff very large values, which could skew the color 
-  x=as.matrix(x[1:n,])-apply(x[1:n,],1,mean)
-  cutoff = median(unlist(x)) + 4*sd (unlist(x)) 
-  x[x>cutoff] <- cutoff
-  cutoff = median(unlist(x)) - 4*sd (unlist(x)) 
-  x[x< cutoff] <- cutoff
-  
-  group = detectGroups(colnames(x))
-  group.colors = rainbow(length(unique(group)))
-  
-  lmat = rbind(c(5,4), c(0,1), c(3,2))
-  lwid = c(1.5,4)
-  lhei = c(1,.2,4)
-  
-  par(mar = c(10, 10, 4, 2) + 0.1)  
-  
-  heatmap.2(x, distfun = dist2,hclustfun=hclust2,
-	 col=greenred(75), density.info="none", trace="none", scale="none", keysize=.5
-	,key=T, symkey=F
-	,ColSideColors=group.colors[ as.factor(group)]
-	,margins=c(8,12)
-	,cexRow=1
-	,srtCol=45
-	,cexCol=1.  # size of font for sample names
-	,lmat = lmat, lwid = lwid, lhei = lhei
-	)
-  
-}
-
-# Idk why but for this to output without an error (allowing knitting) you need to also add the figure dimensions at the start of the chunk
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1F_WT36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1F_WT41)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1M_WT36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1M_WT41)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2F_WT36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2F_WT41)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2M_WT36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2M_WT41)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3F_WT36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3F_WT41)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3M_WT36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3M_WT41)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1F_3641)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl1M_3641)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2F_3641)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl2M_3641)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3F_3641)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rl3M_3641)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rlF_36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rlM_36)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rlF_41)
-```
-
-```{r fig.height=8, fig.width=12}
-seqHeatmap(rlM_41)
-```
-
-## Median LFC for pAdj \< 0.05 genes
-
-```{r}
-medianpLFC = function(x){
-  
-  x = x[(x$log2FoldChange > 0) & (x$padj < 0.05),]
-  #x = x[(x$log2FoldChange > 0.5) & (x$padj < 0.5),]
-  
-  y = median(x$log2FoldChange, na.rm = TRUE)
-  
-  return(y)
-}
-
-mediannLFC = function(x){
-
-  x = x[(x$log2FoldChange < 0) & (x$padj < 0.05),]    
-  #x = x[(x$log2FoldChange < -0.5) & (x$padj < 0.5),]
-  
-  y = median(x$log2FoldChange, na.rm = TRUE)
-  
-  return(y)
-}
-```
-
-```{r}
-
-T1F_WT36 = medianpLFC(reList$res1F_WT36)
-
-T2F_WT36 = medianpLFC(reList$res2F_WT36)
-
-T3F_WT36 = medianpLFC(reList$res3F_WT36)
-
-T1M_WT36 = medianpLFC(reList$res1M_WT36)
-
-T2M_WT36 = medianpLFC(reList$res2M_WT36)
-
-T3M_WT36 = medianpLFC(reList$res3M_WT36)
-
-medPlfc36 = c(T1F_WT36,T1M_WT36, T2F_WT36, T2M_WT36,T3F_WT36, T3M_WT36)
-
-barplot(medPlfc36, names.arg = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), main = "Median Expression Log Fold Change for L36 PDEs", ylab = "Median Expression Log Fold Change")
-```
-
-```{r}
-T1F_WT41 = medianpLFC(reList$res1F_WT41)
-
-T2F_WT41 = medianpLFC(reList$res2F_WT41)
-
-T3F_WT41 = medianpLFC(reList$res3F_WT41)
-
-T1M_WT41 = medianpLFC(reList$res1M_WT41)
-
-T2M_WT41 = medianpLFC(reList$res2M_WT41)
-
-T3M_WT41 = medianpLFC(reList$res3M_WT41)
-
-medPlfc41 = c(T1F_WT41,T1M_WT41, T2F_WT41, T2M_WT41,T3F_WT41, T3M_WT41)
-
-barplot(medPlfc41, names.arg = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), main = "Median Expression Log Fold Change for L41 PDEs", ylab = "Average Expression Log Fold Change")
-```
-
-```{r}
-T1F_WT36 = mediannLFC(reList$res1F_WT36)
-
-T2F_WT36 = mediannLFC(reList$res2F_WT36)
-
-T3F_WT36 = mediannLFC(reList$res3F_WT36)
-
-T1M_WT36 = mediannLFC(reList$res1M_WT36)
-
-T2M_WT36 = mediannLFC(reList$res2M_WT36)
-
-T3M_WT36 = mediannLFC(reList$res3M_WT36)
-
-medNlfc36 = c(T1F_WT36,T1M_WT36, T2F_WT36, T2M_WT36,T3F_WT36, T3M_WT36)
-
-barplot(medNlfc36, names.arg = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), main = "Median Expression Log Fold Change for L36 NDEs", ylab = "Median Expression Log Fold Change")
-```
-
-```{r}
-T1F_WT41 = mediannLFC(reList$res1F_WT41)
-
-T2F_WT41 = mediannLFC(reList$res2F_WT41)
-
-T3F_WT41 = mediannLFC(reList$res3F_WT41)
-
-T1M_WT41 = mediannLFC(reList$res1M_WT41)
-
-T2M_WT41 = mediannLFC(reList$res2M_WT41)
-
-T3M_WT41 = mediannLFC(reList$res3M_WT41)
-
-medNlfc41 = c(T1F_WT41,T1M_WT41, T2F_WT41, T2M_WT41,T3F_WT41, T3M_WT41)
-
-barplot(medNlfc41, names.arg = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), main = "Average Expression Log Fold Change for L41 NDEs", ylab = "Median Expression Log Fold Change")
-```
-
-## Absolute numbers of RBP DEGs, split by condition
-
-```{r}
-plot_DEG_barplot <- function(condition_dfs, condition_names, logfc_threshold = 0.5, padj_threshold = 0.05, title = "title your stuff") {
-  
-  # Check if the input is a list of data frames
-  if (!is.list(condition_dfs) || any(!sapply(condition_dfs, is.data.frame))) {
-    stop("Error: condition_dfs must be a list of data frames.")
-  }
-  
-  # Initialize vectors to store the number of positive and negative DE genes for each condition
-  positive_genes <- numeric(length(condition_dfs))
-  negative_genes <- numeric(length(condition_dfs))
-  
-  # Loop over each data frame to count positive and negative DE genes
-  for (i in seq_along(condition_dfs)) {
-    df <- condition_dfs[[i]]
-    
-    # Ensure the data frame contains 'log2FoldChange' and 'pAdj' columns
-    if (!all(c("log2FoldChange", "padj") %in% colnames(df))) {
-      stop(paste("Error: Data frame for condition", condition_names[i], "must contain 'log2FoldChange' and 'pAdj' columns."))
-    }
-    
-    # Count the number of positively and negatively differentially expressed genes
-    positive_genes[i] <- sum(df$log2FoldChange > logfc_threshold & df$padj < padj_threshold, na.rm = TRUE)
-    negative_genes[i] <- sum(df$log2FoldChange < -logfc_threshold & df$padj < padj_threshold, na.rm = TRUE)
-  }
-  
-  # Combine the counts into a matrix for the barplot
-  gene_counts <- rbind(negative_genes, positive_genes)
-  
-  # Calculate the range for the y-axis
-  y_min <- min(c(0, negative_genes))  # Start from 0 to include positive values
-  y_max <- max(c(positive_genes, abs(negative_genes))) * 1.2  # Extend the limit a bit to leave space for the labels
-  
-  # Plot the stacked barplot
-  bar_positions <- barplot(gene_counts,
-                           beside = TRUE,  # Plot bars side by side
-                           names.arg = condition_names,  # Condition labels
-                           col = c("red", "green"),  # Colors for positive and negative
-                           main = title,
-                           ylab = "Number of Genes",
-                           ylim = c(y_min, y_max))  # Adjust the y-axis limits
-  
-  # Add a legend
-  legend("topright", legend = c("Negatively DEGs", "Positively DEGs"), fill = c("red", "green"))
-  
-  # Add text on top of each bar showing the count
-  text(x = bar_positions[1, ], y = negative_genes, labels = negative_genes, pos = 3, col = "black")  # Negative DEGs
-  text(x = bar_positions[2, ], y = positive_genes, labels = positive_genes, pos = 3, col = "black")  # Positive DEGs
-}
-```
-
-```{r}
-
-L36 = list(reList$res1F_WT36, reList$res1M_WT36, reList$res2F_WT36, reList$res2M_WT36, reList$res3F_WT36, reList$res3M_WT36)
-
-plot_DEG_barplot(condition_dfs = L36, condition_names = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), title = "Total Differentially Expressed RBPs - L36")
-```
-
-```{r}
-L41 = list(reList$res1F_WT41, reList$res1M_WT41, reList$res2F_WT41, reList$res2M_WT41, reList$res3F_WT41, reList$res3M_WT41)
-
-plot_DEG_barplot(condition_dfs = L41, condition_names = c("T1F", "T1M", "T2F", "T2M", "T3F", "T3M"), title = "Total Differentially Expressed Genes - L41")
+   venn.diagram(
+    x = list(
+      "F36" = genesAll$res3F_WT36,
+      "M36" = genesAll$res3M_WT36,
+      "F41" = genesAll$res3F_WT41,
+      "M41" = genesAll$res3M_WT41
+    ),
+    filename = "TP3_3641.png",
+    col = "black",
+    fill = c("red", "green", "blue", "cyan"),
+    alpha = 0.5,
+    cex = 1.5,
+    cat.cex = 1.5,
+    cat.col = c("red", "green", "blue", "cyan")
+  )
 ```
