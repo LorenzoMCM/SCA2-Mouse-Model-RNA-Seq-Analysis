@@ -1,7 +1,7 @@
 ---
-title: "RNA_setup"
+title: "GO_Analysis_RBPs"
 author: "Lorenzo.MCM"
-date: "2024-06-04"
+date: "2024-07-20"
 output: html_document
 ---
 
@@ -15,16 +15,27 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r eval=FALSE}
 
-install.packages(c('dplyr','readxl'), repos = "http://cran.us.r-project.org" )
+install.packages(c('dplyr','readxl','DESeq2'), repos = "http://cran.us.r-project.org" )
 ```
 
 ```{r eval=FALSE}
-BiocManager::install(c('DESeq2'))
+BiocManager::install(c('DESeq2', 'AnnotationDbi', 'vsn', 'org.Mm.eg.db', 'apeglm', 'select', 'topGO', 'pathview', 'gage', 'gageData', 'limma'))
+
+
 ```
 
 ```{r message=FALSE}
 library(readxl)
 library(DESeq2)
+library(ggplot2)
+library(gplots)
+library(pheatmap)
+library(vsn)
+library(Glimma)
+library(regionReport)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(AnnotationDbi)
 library(dplyr)
 ```
 
@@ -48,24 +59,7 @@ reads = as.data.frame(reads)
 
 reads = na.omit(reads)
 
-```
-
-## Importing panther-db list of RBPs and tidying it up (browsed for RNA Metabolism Proteins and filtered for Mus musculus, exported to and edited in excel so the only row was MGI IDs, removed genes that did not have MGI IDs)
-
-```{r message=FALSE, warning=FALSE}
-
-# Importing list of RBPs, omitting NAs
-
-#mainPanther = as.data.frame(read_excel('rna_met.xlsx', col_names = FALSE))
-
-mainPanther = as.data.frame(read_excel('Panther-RBPs.xlsx', col_names = FALSE))
-
-mainPanther = mainPanther[!is.na(mainPanther)]
-
-# Filtering the reads object so it only contains genes whose MGI is also present in the list of RBPs, resulting in a final "rbps" object 
-
-rbps = reads[reads$MGI %in% mainPanther,]
-
+rbps = reads
 
 ```
 
@@ -349,9 +343,9 @@ ddsM_41 = DESeqDataSetFromMatrix(countData = rbpsM_41,colData = cM_41,
                                 design = ~tpM_41)
 ```
 
-## Running DESeq analysis
+## Running DESeq
 
-```{r message=FALSE}
+```{r message=FALSE, warning=FALSE}
 
 dds1F_WTG = DESeq(dds1F_WTG)
 dds1M_WTG = DESeq(dds1M_WTG)
@@ -400,6 +394,16 @@ ddsM_36 = DESeq(ddsM_36)
 
 ddsF_41 = DESeq(ddsF_41)
 ddsM_41 = DESeq(ddsM_41)
+```
+
+# Reports on differentially expressed (Padj < 0.5) genes for easy visualization, commented to allow Knitting
+
+```{r eval=FALSE, include=FALSE}
+# Commented to allow Markdown knitting, must uncomment and open output in browser for visualization
+
+#limmaVolcano(x = dds3F_WTG, counts = T3F_WTG, groups = c3F_WTG$l3F_WTG)
+
+#DESeq2Report(dds = dds3F_WTG, project = "T3 Female TG v WT", intgroup = c("l3F_WTG"), output = "T3_F_WTG")
 ```
 
 # Preparing readable output
@@ -475,9 +479,14 @@ resF_41_32 = results(ddsF_41, contrast = c("tpF_41","3","2"))
 resM_41_31 = results(ddsM_41, contrast = c("tpM_41","3","1"))
 resM_41_21 = results(ddsM_41, contrast = c("tpM_41","2","1"))
 resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
-
 ```
 
+# GO Analysis
+
+```{r message=FALSE}
+library(GO.db)
+library(GOstats)
+```
 ## Converting results to dfs, adding MGI,
 entrez and Symbol as columns 
 
@@ -508,160 +517,111 @@ reList = lapply(reList, function(res) {
 
 ```
 
-## Function for selecting genes according to LFC, padj value and key
-
 ```{r}
+#Subsetting only genes with a padj below 0.05 from results
+sigRes = lapply(reList, function(x) as.data.frame(subset(x, padj < 0.05)))
 
-pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+allgo = function(x, lfcThreshold = 2, padjThreshold = 0.05, cutOff = 0.05, ont = "BP"){
   
-  # Filter rows based on log2FoldChange and padj
-  filtered_x <- x[(x$log2FoldChange > lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
+  selectGenes = unique(x$Gene_ID[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold)])
   
-  # Sort the filtered rows by LFC value
-  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
+  if(length(selectGenes) == 0){
+    warning("No genes meet the log2 fold change threshold.")
+    return(NULL)
+  }  
   
-  # Handle max condition. If a number, returned DF has that many lines
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
+  universe <- unique(x$Gene_ID)
   
-  return(sorted_x[[key]])
+  Params = new("GOHyperGParams",
+                 geneIds = selectGenes,
+                 universeGeneIds = universe,
+                 annotation = "org.Mm.eg.db",
+                 ontology = ont,
+                 pvalueCutoff = cutOff,
+                 conditional = FALSE,
+                 testDirection = "over")
+    
+  return(hyperGTest(Params))
 }
 
-ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
 
-  filtered_x <- x[(x$log2FoldChange < lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
+```
+
+## GO graphs
+
+```{r fig.height=20, fig.width=20}
+
+# Function for listing significant genes of a result object
+
+sigGenes = function(x, lfcThreshold = 2, padjThreshold = 0.05){
   
-  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
-  
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
-  
-  return(sorted_x[[key]])
+  selectGenes = unique(x$Gene_ID[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold)])
+  return(selectGenes)
 }
 
-degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
-  
-  filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
-  
-  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
-  
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
-  
-  return(sorted_x[[key]])
-}
+# Applying the function to all results 
+sigAll = lapply(reList, sigGenes)
 
+# Now we can apply the GO graph function to each condition we want, important to have large fig. dimensions at the start of the chunk for the sake of readability
+
+plotGOgraph(x = (enrichGO(sigAll$res1F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
 ```
 
-## Applying to all results
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res1M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3F_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3M_WT36, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
 
 ```{r}
-
-genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
-
-genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.05, max = NULL)
-
-genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
-
+plotGOgraph(x = (enrichGO(sigAll$res1F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
 ```
 
-## Outputting as csv for easy consulting
 
-```{r message=FALSE, warning=FALSE}
-
-outputTidy = function(x, title) {
-
-  max_length = max(sapply(x, length))
-  
-  padded_lists = lapply(x, function(y) {
-    length(y) = max_length  
-    return(y)
-  })
-  
-  # Convert the list of lists into a data frame
-  df = as.data.frame(padded_lists)
-  
-  # Step 3: Write the data frame to a CSV file
-  write.csv(df, title, row.names = FALSE)
-  
-}
-
-outputTidy(genesAll, "DEG_rbps.csv")
-outputTidy(genespAll, "DEG_P_rbps.csv")
-outputTidy(genesnAll, "DEG_N_rbps.csv")
-
-#When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
-
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res1M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
 ```
 
-### Most commonly differentially Expressed RBPs per line and Overall
 
-```{r}
-# Filtering results objects for significance thresholds
-
-sigLFCList = lapply(reList, function(df){
-  
-  df = df[(df$log2FoldChange > 0.5 | df$log2FoldChange < -0.5) & df$padj < 0.05,]
-  
-  df = df[!is.na(df$Gene_Symbol),]
-})
-
-# Listing the Gene symbols of all differentialy expressed RBPs
-
-DEG_rbps = c(sigLFCList$res1F_WT36$Gene_Symbol, sigLFCList$res1M_WT36$Gene_Symbol,sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol,sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol,sigLFCList$res1F_WT41$Gene_Symbol, sigLFCList$res1M_WT41$Gene_Symbol,sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol,sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol)
-
-DEG_rbps_36 = c(sigLFCList$res1F_WT36$Gene_Symbol, sigLFCList$res1M_WT36$Gene_Symbol,sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol,sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol)
-
-DEG_rbps_41 = c(sigLFCList$res1F_WT41$Gene_Symbol, sigLFCList$res1M_WT41$Gene_Symbol,sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol,sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol)
-
-# Returning sorted lists 
-
-DEG_rbps_36 = sort(table(DEG_rbps_36), decreasing = TRUE)
-DEG_rbps_36
-
-DEG_rbps_41 = sort(table(DEG_rbps_41), decreasing = TRUE)
-DEG_rbps_41
-
-DEG_rbps_top = sort(table(DEG_rbps), decreasing = TRUE)
-DEG_rbps_top
-```
-```{r}
-df36 = as.data.frame(DEG_rbps_36)
-
-rownames(df36) = df36$Gene_Symbol
-
-df41 = as.data.frame(DEG_rbps_41)
-
-rownames(df41) = df41$Gene_symbol
-
-ddf36 = df36 %>% filter(!(DEG_rbps_36 %in% df41$DEG_rbps_41))
-
-ddf41 = df41 %>% filter(!(DEG_rbps_41 %in% df36$DEG_rbps_36))
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
 ```
 
-### Outputting DE RBP lists
 
-```{r}
-write.csv(sigLFCList$res1F_WT36, file = "1F36.csv", row.names = FALSE)
-write.csv(sigLFCList$res1M_WT36, file = "1M36.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res2F_WT36, file = "2F36.csv", row.names = FALSE)
-write.csv(sigLFCList$res2M_WT36, file = "2M36.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res3F_WT36, file = "3F36.csv", row.names = FALSE)
-write.csv(sigLFCList$res3M_WT36, file = "3M36.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res1F_WT41, file = "1F41.csv", row.names = FALSE)
-write.csv(sigLFCList$res1M_WT41, file = "1M41.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res2F_WT41, file = "2F41.csv", row.names = FALSE)
-write.csv(sigLFCList$res2M_WT41, file = "2M41.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res3F_WT41, file = "3F41.csv", row.names = FALSE)
-write.csv(sigLFCList$res3M_WT41, file = "3M41.csv", row.names = FALSE)
-
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res2M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
 ```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3F_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+```{r fig.height=20, fig.width=20}
+plotGOgraph(x = (enrichGO(sigAll$res3M_WT41, OrgDb = "org.Mm.eg.db")), firstSigNodes = 20)
+```
+
+
+
 

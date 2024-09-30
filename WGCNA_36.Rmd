@@ -252,8 +252,7 @@ rm(traits1)
 
 ```{r}
 green = module_eigengenes$MEgreen
-pink = module_eigengenes$MEpink
-yellow = module_eigengenes$MEyellow
+blue = module_eigengenes$MEblue
 
 corGreen = cor.test(green, traits$c36_bin)
 
@@ -263,19 +262,11 @@ pGreen
 ```
 
 ```{r}
-corPink = cor.test(pink, traits$c36_bin)
+corBlue= cor.test(blue, traits$c36_bin)
 
-pPink = corPink$p.value
+pBlue = corBlue$p.value
 
-pPink
-```
-
-```{r}
-corYellow = cor.test(yellow, traits$c36_bin)
-
-pYellow = corYellow$p.value
-
-pYellow
+pBlue
 
 ```
 

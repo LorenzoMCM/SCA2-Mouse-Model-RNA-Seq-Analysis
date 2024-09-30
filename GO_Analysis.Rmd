@@ -1,13 +1,9 @@
 ---
-title: "GO_Analysis_RBPs"
-author: "Lorenzo.MCM"
-date: "2024-07-20"
-output: html_document
+title: "GO Analyses"
+output:
+  html_document:
+    df_print: paged
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 # Initial Setup
 
@@ -79,7 +75,8 @@ colnames(rbps) = (read_excel("conditions.xlsx", col_names = FALSE))[1,]
               
 ```
 
-# Setting up for DESeq 
+# Setting up for DESeq
+
 ## Intermediate objects for selecting conditions for comparisons through DESeq
 
 ```{r message=FALSE, warning=FALSE}
@@ -153,7 +150,8 @@ T3M_WTG = bind_cols(T3M_WT, T3M_TG)
 
 ```
 
-## setting up dfs for DESeq design 
+## setting up dfs for DESeq design
+
 ```{r}
 #timepoint lists
 tpF_WT = c("1","1","1","2","2","2","3","3","3")
@@ -477,8 +475,8 @@ resM_41_32 = results(ddsM_41, contrast = c("tpM_41","3","2"))
 library(GO.db)
 library(GOstats)
 ```
-## Converting results to dfs, adding MGI,
-entrez and Symbol as columns 
+
+## Converting results to datafs, adding MGI, entrez ID and Symbol as columns
 
 ```{r message=FALSE}
 
@@ -508,6 +506,7 @@ reList = lapply(reList, function(res) {
 ```
 
 ```{r}
+
 #Subsetting only genes with a padj below 0.05 from results
 sigRes = lapply(reList, function(x) as.data.frame(subset(x, padj < 0.05)))
 
@@ -537,10 +536,10 @@ allgo = function(x, lfcThreshold = 2, padjThreshold = 0.05, cutOff = 0.05, ont =
 
 ```
 
-
-## Comparing WT and TG mice (these take ~5 minutes to complete per chunk, depending on your CPU single core performance)
+## Comparing WT and TG mice (these take \~5 minutes to complete per chunk, depending on your CPU single core performance)
 
 ### BP Analysis
+
 ```{r}
 BPGO1F_WT36 = (summary(allgo(sigRes$res1F_WT36)))
 BPGO1M_WT36 = (summary(allgo(sigRes$res1M_WT36)))
@@ -630,7 +629,6 @@ CCGO3F_WT41
 CCGO3M_WT41
 ```
 
-
 ### MF Analysis
 
 ```{r}
@@ -706,7 +704,6 @@ BPGO3F_3641
 BPGO3M_3641
 ```
 
-
 ### CC Analysis
 
 ```{r}
@@ -762,7 +759,6 @@ MFGO2M_3641
 MFGO3F_3641
 MFGO3M_3641
 ```
-
 
 ## Timepoint Comparisons
 
@@ -843,7 +839,6 @@ MFGOM_36_32
 MFGOF_36_31
 MFGOM_36_31
 ```
-
 
 ```{r}
 
@@ -1113,6 +1108,7 @@ keggPathAnal(reList$resF_WT31)
 ```{r}
 keggPathAnal(reList$resM_WT31)
 ```
+
 ### 36
 
 ```{r}
@@ -1165,7 +1161,6 @@ keggPathAnal(reList$resF_41_32)
 keggPathAnal(reList$resM_41_32)
 ```
 
-
 ## WGCNA Modules GO Analysis
 
 ```{r}
@@ -1173,15 +1168,11 @@ greenMod = read.csv("greenMod36.csv")
 greenMod = as.data.frame(greenMod$rownames.kWithin_sorted.)
 colnames(greenMod) = "Gene_Symbol"
 
-pinkMod = read.csv("pinkMod36.csv")
-pinkMod = as.data.frame(pinkMod$rownames.kWithin_sorted.)
-colnames(pinkMod) = "Gene_Symbol"
+blueMod = read.csv("blueMod36.csv")
+blueMod = as.data.frame(blueMod$rownames.kWithin_sorted.)
+colnames(blueMod) = "Gene_Symbol"
 
-yellowMod = read.csv("yellowMod36.csv")
-yellowMod = as.data.frame(yellowMod$rownames.kWithin_sorted.)
-colnames(yellowMod) = "Gene_Symbol"
-
-modList = list(greenMod, pinkMod, yellowMod)
+modList = list(greenMod, blueMod)
 
 modList <- lapply(modList, function(df) {
 
@@ -1218,36 +1209,30 @@ modgo = function(x, cutOff = 0.05,ont = "BP"){
 
 ```{r}
 BPgreen = modgo(modList[[1]]$Gene_ID)
-BPpink = modgo(modList[[2]]$Gene_ID)
-BPyellow = modgo(modList[[3]]$Gene_ID)
+BPblue = modgo(modList[[2]]$Gene_ID)
 ```
 
 ```{r}
 summary(BPgreen)
-summary(BPpink)
-summary(BPyellow)
+summary(BPblue)
 ```
 
 ```{r}
 CCgreen = modgo(modList[[1]]$Gene_ID, ont = "CC")
-CCpink = modgo(modList[[2]]$Gene_ID, ont = "CC")
-CCyellow = modgo(modList[[3]]$Gene_ID, ont = "CC")
+CCblue = modgo(modList[[2]]$Gene_ID, ont = "CC")
 ```
 
 ```{r}
 summary(CCgreen)
-summary(CCpink)
-summary(CCyellow)
+summary(CCblue)
 ```
 
 ```{r}
 MFgreen = modgo(modList[[1]]$Gene_ID, ont = "MF")
-MFpink = modgo(modList[[2]]$Gene_ID, ont = "MF")
-MFyellow = modgo(modList[[3]]$Gene_ID, ont = "MF")
+MFblue = modgo(modList[[2]]$Gene_ID, ont = "MF")
 ```
 
 ```{r}
 summary(MFgreen)
-summary(MFpink)
-summary(MFyellow)
+summary(MFblue)
 ```

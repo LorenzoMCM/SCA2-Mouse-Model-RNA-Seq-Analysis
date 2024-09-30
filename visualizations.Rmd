@@ -710,7 +710,7 @@ EnhancedVolcano(res1M_WT36,
                 caption = NULL)
 ```
 
-```{r,fig.width= 7, fig.height=7}
+```{r,fig.width= 8, fig.height=8}
 EnhancedVolcano(res2F_WT36,
                 lab = rownames(res2F_WT36),
                 x = 'log2FoldChange',
@@ -735,7 +735,9 @@ EnhancedVolcano(res2M_WT36,
                 xlim = c(-3,3),
                 title = NULL,
                 subtitle = NULL,
-                caption = NULL)
+                caption = NULL,
+                labSize = 5)
+
 ```
 
 ```{r,fig.width= 7, fig.height=7}
@@ -1002,6 +1004,13 @@ seqHeatmap(rlF_41)
 
 ```{r fig.height=8, fig.width=12}
 seqHeatmap(rlM_41)
+```
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rlF_WT)
+```
+
+```{r fig.height=8, fig.width=12}
+seqHeatmap(rlM_WT)
 ```
 
 ## Median LFC for pAdj \< 0.05 genes

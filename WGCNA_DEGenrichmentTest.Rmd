@@ -1,7 +1,7 @@
 ---
-title: "RNA_setup"
+title: "DEG_Enrichment_Test_WGCNA"
 author: "Lorenzo.MCM"
-date: "2024-06-04"
+date: "2024-09-18"
 output: html_document
 ---
 
@@ -48,26 +48,9 @@ reads = as.data.frame(reads)
 
 reads = na.omit(reads)
 
+rbps = reads
 ```
 
-## Importing panther-db list of RBPs and tidying it up (browsed for RNA Metabolism Proteins and filtered for Mus musculus, exported to and edited in excel so the only row was MGI IDs, removed genes that did not have MGI IDs)
-
-```{r message=FALSE, warning=FALSE}
-
-# Importing list of RBPs, omitting NAs
-
-#mainPanther = as.data.frame(read_excel('rna_met.xlsx', col_names = FALSE))
-
-mainPanther = as.data.frame(read_excel('Panther-RBPs.xlsx', col_names = FALSE))
-
-mainPanther = mainPanther[!is.na(mainPanther)]
-
-# Filtering the reads object so it only contains genes whose MGI is also present in the list of RBPs, resulting in a final "rbps" object 
-
-rbps = reads[reads$MGI %in% mainPanther,]
-
-
-```
 
 ## Naming conditions and final set up of rbps object
 
@@ -508,160 +491,126 @@ reList = lapply(reList, function(res) {
 
 ```
 
-## Function for selecting genes according to LFC, padj value and key
+
+## Fisher's test to check WGCNA modules for DEG content, these require the output from both WGCNA.Rmd files. Only modules with significant results for TG-WT binary variable
 
 ```{r}
-
-pdegenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
+sigList = lapply(reList, function(df){
+  df[df$padj < 0.05,]
+})
+ 
+sigLFCList = lapply(sigList, function(df){
   
-  # Filter rows based on log2FoldChange and padj
-  filtered_x <- x[(x$log2FoldChange > lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
-  
-  # Sort the filtered rows by LFC value
-  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
-  
-  # Handle max condition. If a number, returned DF has that many lines
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
-  
-  return(sorted_x[[key]])
-}
-
-ndegenes = function(x, lfcThreshold = -2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
-
-  filtered_x <- x[(x$log2FoldChange < lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj), ]
-  
-  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
-  
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
-  
-  return(sorted_x[[key]])
-}
-
-degenes = function(x, lfcThreshold = 2, padjThreshold = 0.05, max = 20, key = "Gene_Symbol") {
-  
-  filtered_x <- x[(x$log2FoldChange > lfcThreshold | x$log2FoldChange < -lfcThreshold) & (x$padj < padjThreshold) & !is.na(x$padj),]
-  
-  sorted_x <- filtered_x[order(filtered_x$log2FoldChange), ]
-  
-  if (!is.null(max)) {
-    sorted_x <- head(sorted_x, max)
-  }
-  
-  return(sorted_x[[key]])
-}
-
-```
-
-## Applying to all results
-
-```{r}
-
-genespAll = lapply(reList, pdegenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
-
-genesnAll = lapply(reList, ndegenes, lfcThreshold = -0.5, padjThreshold = 0.05, max = NULL)
-
-genesAll = lapply(reList, degenes, lfcThreshold = 0.5, padjThreshold = 0.05, max = NULL)
-
-```
-
-## Outputting as csv for easy consulting
-
-```{r message=FALSE, warning=FALSE}
-
-outputTidy = function(x, title) {
-
-  max_length = max(sapply(x, length))
-  
-  padded_lists = lapply(x, function(y) {
-    length(y) = max_length  
-    return(y)
-  })
-  
-  # Convert the list of lists into a data frame
-  df = as.data.frame(padded_lists)
-  
-  # Step 3: Write the data frame to a CSV file
-  write.csv(df, title, row.names = FALSE)
-  
-}
-
-outputTidy(genesAll, "DEG_rbps.csv")
-outputTidy(genespAll, "DEG_P_rbps.csv")
-outputTidy(genesnAll, "DEG_N_rbps.csv")
-
-#When opening the csv files in excel, navigate to data tab and click on "Text to columns" when selecting the entire first column, select "Delimited", add "comma" as a separator and format all columns as text. 
-
-```
-
-### Most commonly differentially Expressed RBPs per line and Overall
-
-```{r}
-# Filtering results objects for significance thresholds
-
-sigLFCList = lapply(reList, function(df){
-  
-  df = df[(df$log2FoldChange > 0.5 | df$log2FoldChange < -0.5) & df$padj < 0.05,]
+  df = df[df$log2FoldChange > 1 | df$log2FoldChange < -1,]
   
   df = df[!is.na(df$Gene_Symbol),]
 })
-
-# Listing the Gene symbols of all differentialy expressed RBPs
-
-DEG_rbps = c(sigLFCList$res1F_WT36$Gene_Symbol, sigLFCList$res1M_WT36$Gene_Symbol,sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol,sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol,sigLFCList$res1F_WT41$Gene_Symbol, sigLFCList$res1M_WT41$Gene_Symbol,sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol,sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol)
-
-DEG_rbps_36 = c(sigLFCList$res1F_WT36$Gene_Symbol, sigLFCList$res1M_WT36$Gene_Symbol,sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol,sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol)
-
-DEG_rbps_41 = c(sigLFCList$res1F_WT41$Gene_Symbol, sigLFCList$res1M_WT41$Gene_Symbol,sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol,sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol)
-
-# Returning sorted lists 
-
-DEG_rbps_36 = sort(table(DEG_rbps_36), decreasing = TRUE)
-DEG_rbps_36
-
-DEG_rbps_41 = sort(table(DEG_rbps_41), decreasing = TRUE)
-DEG_rbps_41
-
-DEG_rbps_top = sort(table(DEG_rbps), decreasing = TRUE)
-DEG_rbps_top
+ 
+DEG_36 = unique(c(sigLFCList$res1F_WT36$Gene_Symbol,sigLFCList$res1M_WT36$Gene_Symbol, sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol, sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol))
+ 
+DEG_41 = unique(c(sigLFCList$res1F_WT41$Gene_Symbol,sigLFCList$res1M_WT41$Gene_Symbol, sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol, sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol))
 ```
+ 
 ```{r}
-df36 = as.data.frame(DEG_rbps_36)
+grey36 = read.csv("greyMod36.csv")
+grey36 = grey36$rownames.kWithin_sorted.
+ 
+green36 = read.csv("greenMod36.csv")
+green36 = green36$rownames.kWithin_sorted.
 
-rownames(df36) = df36$Gene_Symbol
-
-df41 = as.data.frame(DEG_rbps_41)
-
-rownames(df41) = df41$Gene_symbol
-
-ddf36 = df36 %>% filter(!(DEG_rbps_36 %in% df41$DEG_rbps_41))
-
-ddf41 = df41 %>% filter(!(DEG_rbps_41 %in% df36$DEG_rbps_36))
+blue36 = read.csv("blueMod36.csv")
+blue36 = blue36$rownames.kWithin_sorted.
+ 
+turquoise36 = read.csv("turquoiseMod36.csv")
+turquoise36 = turquoise36$rownames.kWithin_sorted.
+ 
+pink36 = read.csv("pinkMod36.csv")
+pink36 = pink36$rownames.kWithin_sorted.
+ 
+yellow36 = read.csv("yellowMod36.csv")
+yellow36 = yellow36$rownames.kWithin_sorted.
+ 
+modules36 = list(grey = grey36, green = green36, blue = blue36, turquoise = turquoise36, pink = pink36, yellow = yellow36)
+```
+ 
+```{r}
+magenta41 = read.csv("magentaMod41.csv")
+magenta41 = magenta41$rownames.kWithin_sorted.
+ 
+black41 = read.csv("blackMod41.csv")
+black41 = black41$rownames.kWithin_sorted.
+ 
+purple41 = read.csv("purpleMod41.csv")
+purple41 = purple41$rownames.kWithin_sorted.
+ 
+brown41 = read.csv("brownMod41.csv")
+brown41 = brown41$rownames.kWithin_sorted.
+ 
+turquoise41 = read.csv("turquoiseMod41.csv")
+turquoise41 = turquoise41$rownames.kWithin_sorted.
+ 
+modules41 = list(magenta = magenta41, black = black41, purple = purple41, brown = brown41, turquoise = turquoise41)
 ```
 
-### Outputting DE RBP lists
+### Fisher's Test function and enrichment for DEGs with an absolute LFC>1.0
 
 ```{r}
-write.csv(sigLFCList$res1F_WT36, file = "1F36.csv", row.names = FALSE)
-write.csv(sigLFCList$res1M_WT36, file = "1M36.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res2F_WT36, file = "2F36.csv", row.names = FALSE)
-write.csv(sigLFCList$res2M_WT36, file = "2M36.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res3F_WT36, file = "3F36.csv", row.names = FALSE)
-write.csv(sigLFCList$res3M_WT36, file = "3M36.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res1F_WT41, file = "1F41.csv", row.names = FALSE)
-write.csv(sigLFCList$res1M_WT41, file = "1M41.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res2F_WT41, file = "2F41.csv", row.names = FALSE)
-write.csv(sigLFCList$res2M_WT41, file = "2M41.csv", row.names = FALSE)
-
-write.csv(sigLFCList$res3F_WT41, file = "3F41.csv", row.names = FALSE)
-write.csv(sigLFCList$res3M_WT41, file = "3M41.csv", row.names = FALSE)
-
+universe36 = union(DEG_36, unlist(modules36))
+ 
+universe41 = union(DEG_41, unlist(modules41))
+ 
+ 
+enrichment_test = function(modules, DEGs, universe){
+   
+  num_DEGs_in_module = length(intersect(modules, DEGs))
+   
+  num_nonDEGs_in_module = length(modules) - num_DEGs_in_module
+  
+  num_DEGs_not_in_module = length(DEGs) - num_DEGs_in_module
+  
+  num_nonDEGs_not_in_module = length(universe) - length(DEGs) - num_nonDEGs_in_module
+  
+  contingencyTable = matrix(
+    c(num_DEGs_in_module, num_DEGs_not_in_module,
+      num_nonDEGs_in_module, num_nonDEGs_not_in_module),
+    nrow = 2
+  )
+   
+  fisher.test(contingencyTable, alternative = "greater")$p.value
+   
+}
+ 
+enrichment36 = sapply(modules36, enrichment_test, DEGs = DEG_36, universe = universe36)
+enrichment36
 ```
+ ### Out of these only blue and green are relevant, when compared to the heatmap yielded by the WGCNA of L36
+```{r}
+enrichment41 = sapply(modules41, enrichment_test, DEGs = DEG_41, universe = universe41)
+enrichment41
+```
+
+### Test for absolute LFC > 2.0
+
+```{r}
+sigLFCList = lapply(sigList, function(df){
+  
+  df = df[df$log2FoldChange > 2 | df$log2FoldChange < -2,]
+  
+  df = df[!is.na(df$Gene_Symbol),]
+})
+ 
+DEG_36 = unique(c(sigLFCList$res1F_WT36$Gene_Symbol,sigLFCList$res1M_WT36$Gene_Symbol, sigLFCList$res2F_WT36$Gene_Symbol, sigLFCList$res2M_WT36$Gene_Symbol, sigLFCList$res3F_WT36$Gene_Symbol, sigLFCList$res3M_WT36$Gene_Symbol))
+ 
+DEG_41 = unique(c(sigLFCList$res1F_WT41$Gene_Symbol,sigLFCList$res1M_WT41$Gene_Symbol, sigLFCList$res2F_WT41$Gene_Symbol, sigLFCList$res2M_WT41$Gene_Symbol, sigLFCList$res3F_WT41$Gene_Symbol, sigLFCList$res3M_WT41$Gene_Symbol))
+
+enrichment36 = sapply(modules36, enrichment_test, DEGs = DEG_36, universe = universe36)
+enrichment36
+```
+
+```{r}
+enrichment41 = sapply(modules41, enrichment_test, DEGs = DEG_41, universe = universe41)
+enrichment41
+```
+
+
 
